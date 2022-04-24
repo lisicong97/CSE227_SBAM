@@ -1,2 +1,4 @@
 # CSE227_SBAM
-a Secure Package Manager based in block-chain
+Update 4.24
+
+​	check data_struct_design.txt to see the data structure and function design

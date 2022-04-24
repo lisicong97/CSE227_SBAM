@@ -1,0 +1,67 @@
+struct User {
+	uint userId;
+	string userName;
+	byte[] publicKey;
+}
+
+struct Package {
+	uint packageId;
+	string packageName;
+	uint version;
+	byte[][] publicKey; // may have different collaborators
+	byte[] content;
+}
+
+contract {
+	mapping(string => uint) userName2userId;
+	mapping(uint => User) userId2user;
+
+	mapping(string => uint) pkgName2pkgId;
+	mapping(uint => Package) pkgId2pkg;
+}
+
+func registerUser(userName) bool {
+	// generate userId
+	// generate key pair, show private key in console, upload public key
+	// store in userName2userId/userId2user/User
+}
+
+// use a twitter post(a signature of the user) to verify user's identity
+func proveIdentity(post, userName) bool {
+	// compare public key in our structure and the post
+}
+
+func registerPackage(packageName, packageContent, userName, userSign) bool {
+	// generate Package object, using user's key
+	// generate pkg key pair, print private key in console, store public key in okg.publicKey
+}
+
+func addCollaborator(packageName, colName, pkgPrivateKey) bool {
+	// verify pkgPrivateKey of package
+	// generate new pkg key for colUser, print private key in console, store public key in okg.publicKey
+}
+
+func uploadPkg(pkgName, pkgPrivateKey, content) {
+	// update version and content
+}
+
+func downloadPkg(pkgName, version) byte[] {
+	
+}
+
+func replacePkgKey(pkgName, pubKey, privateKey) {
+	// remove current corresponding public key
+	// generate new
+}
+
+func replaceUserKey(userName, pubKey, privateKey) {
+	// same
+}
+
+func revokePkgKey(pkgName, pubKey, privateKey) {
+	// 
+}
+
+func revokeUserKey(pkgName, pubKey, privateKey) {
+	// 
+}
