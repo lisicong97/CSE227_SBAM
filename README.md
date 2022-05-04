@@ -9,3 +9,6 @@ Update 4.24
 Update 4.27
 
 * Initialize truffle project
+
+Update 5.3
+* detailed data structure with a media server : https://docs.google.com/document/d/1VIIydXgGLpFnEszDSsNnV_eoqZvfjcJ71c_RChGVGCg/edit
