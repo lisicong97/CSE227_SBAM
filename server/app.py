@@ -5,7 +5,11 @@ import json
 import time
 from Crypto.PublicKey import RSA
 
+import User
+
 app = Flask(__name__)
+
+userName2user = {}
 
 userName2userId = {}
 userName2signMsg = {}
@@ -41,7 +45,9 @@ def confirmUser():
     hash = int.from_bytes(sha512(msg).digest(), byteorder='big')
     hashFromSignature = pow(int(signedMsg), publicKey['e'], publicKey['n'])
     if hash == hashFromSignature:
-        #
+        global currentUserId
+        currentUserId += 1
+        userName2user[userName] = User(currentUserId, userName, publicKey, None)
         return json.dumps({'ifSuccess': True})
     else:
         return json.dumps({'ifSuccess': False})
