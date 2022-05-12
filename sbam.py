@@ -27,47 +27,46 @@ pkgFile.close()
 
 # sbam new-user userName socalMedia
 if message == 'new-user':
-	if len(sys.argv) != 4:
-		print("Please type in your user name and social media account name")
-		sys.exit()
+    if len(sys.argv) != 4:
+    	print("Please type in your user name and social media account name")
+    	sys.exit()
+    else:
+        userName = sys.argv[2]
+        socialMedia = sys.argv[3]
+        keyPair = RSA.generate(bits=1024)
 
-	userName = sys.argv[2]
-	socialMedia = sys.argv[3]
-	keyPair = RSA.generate(bits=1024)
+		# save the public key
+        publicKey = keyPair.publickey().exportKey()
+        pubFile = open("publicKey.pem", "wb")
+        pubFile.write(publicKey)
+        pubFile.close()
 
-	# save the public key
-	publicKey = keyPair.publickey().exportKey()
-	pubFile = open("publicKey.pem", "wb")
-	pubFile.write(publicKey)
-	pubFile.close()
+		# save the private key 
+        privateKey = keyPair.exportKey()
+        priFile = open("privateKey.pem", "wb")
+        priFile.write(privateKey)
+        priFile.close()
 
-	# save the private key 
-	privateKey = keyPair.exportKey()
-	priFile = open("privateKey.pem", "wb")
-	priFile.write(privateKey)
-	priFile.close()
+		# send userName to request sign message from server
+        userInfo = {'userName': userName, 'publicKey': json.dumps({'e': keyPair.e, 'n': keyPair.n})}
+        response1 = requests.post(SERVER_IP + "/registerUser", data=userInfo)
+        r1 = response1.json()
+        # deal with the message from the server
+        if r1['ifSuccess'] == False:
+        	print("User Name Has Been Taken!")
+        else:
+        	msg = r1['msg']
+        	hash = int.from_bytes(sha512(str.encode(msg)).digest(), byteorder='big')
+        	signature = pow(hash, keyPair.d, keyPair.n)
+        	signInfo = {'userName': userName, 'signedMsg': signature, 'socialMedia': socialMedia}
+        	response2 = requests.post(SERVER_IP + "/registerUserConfirm", data=signInfo)
+        	r2 = response2.json()
+        	if r2['ifSuccess'] == False:
+        		print("Register Failed!")
+        	else:
+        		print("Register Succeed!")
 
-	# send userName to request sign message from server
-	userInfo = {'userName': userName, 'publicKey': json.dumps({'e': keyPair.e, 'n': keyPair.n})}
-	response1 = requests.post(SERVER_IP + "/registerUser", data=userInfo)
-	r1 = response1.json()
-	# deal with the message from the server
-	if r1['ifSuccess'] == False:
-		print("User Name Has Been Taken!")
-	else:
-		msg = r1['msg']
-		hash = int.from_bytes(sha512(str.encode(msg)).digest(), byteorder='big')
-		signature = pow(hash, keyPair.d, keyPair.n)
-		signInfo = {'userName': userName, 'signedMsg': signature, 'socialMedia': socialMedia}
-		#data = json.dumps(signInfo)
-		response2 = requests.post(SERVER_IP + "/registerUserConfirm", data=signInfo)
-		r2 = response2.json()
-		if r2['ifSuccess'] == False:
-			print("Register Failed!")
-		else:
-			print("Register Succeed!")
-
-# sbam prove-identity userName socialMedia post msg 
+# sbam prove-identity userName socialMedia post msg
 if message == 'prove-identity':
 	userName = sys.argv[2]
 	socialMedia = sys.argv[3]
