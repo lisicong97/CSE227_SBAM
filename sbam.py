@@ -12,6 +12,15 @@ if len(sys.argv) == 1:
 
 message = sys.argv[1]
 
+# create the pkg file if non exist
+pkgFile = open("pkgVersion.txt", 'r')
+# load the meta content of packages to memeory
+metaContent = {}
+for line in pkgFile:
+	l = line.split(" ")
+	metaContent[l[0]] = int(l[1])
+pkgFile.close()
+
 # sbam new-user userName socalMedia
 if message == 'new-user':
 	if len(sys.argv) < 3:
@@ -114,6 +123,8 @@ if message == 'new-pkg':
 
 	r = json.loads(response)
 	if r['ifSuccess']:
+		# Write to the package meta file
+		metaContent[pkgName] = 0
 		print("Package register Succeed!")
 	else:
 		print("Package register Failed!")
@@ -155,12 +166,13 @@ if message == 'add-collaborator':
 
 
 
-# sbam update-pkg pkgName userName curVersion updatedPkgPath	
+# sbam update-pkg pkgName userName updatedPkgPath	
 if message == 'update-pkg':
 	pkgName = sys.argv[2]
 	userName = sys.argv[3]
-	version = sys.argv[4]
-	updatedPkgPath = sys.argv[5]
+	updatedPkgPath = sys.argv[4]
+	version = metaContent[pkgName]
+
 	updatedPkgContent = open(updatedPkgPath, 'rb')
 
 	# get the corresponding pkg private key
@@ -168,14 +180,16 @@ if message == 'update-pkg':
 	priPkgKey = RSA.importKey(f.read())
 
 	#sign
-	hash = int.from_bytes(sha512(str.encode(pkgName+version)).digest(), byteorder='big')
+	hash = int.from_bytes(sha512(str.encode(pkgName+version+updatedPkgContent)).digest(), byteorder='big')
 	signature = pow(hash, priPkgKey.d, priPkgKey.n)
 
-	updatedPkgInfo = {'pkgName':pkgName, 'userName': userName, 'pkgContent': updatedPkgContent, 'version': version, 'sign':signature}
+	updatedPkgInfo = {'pkgName':pkgName, 'userName': userName, 'pkgContent': updatedPkgContent, 'version': version+1, 'sign':signature}
 	data = json.dumps(updatedPkgInfo)
 	response = requests.post("/updatePkg", data=data)
 	r = json.loads(response)
 	if r['ifSuccess']:
+		# update the pkg version after update package successfully
+		metaContent[pkgName] = version + 1
 		print("Update Package Succeed!")
 	else:
 		print("Update Package Failed")
@@ -228,3 +242,10 @@ if message == 'replace-package-key':
 		print("Replace Key Succeed!")
 	else:
 		print("Replace Key Failed!")
+
+# write the pkg meta content to the file
+pkgFile = open("pkgVersion.txt", 'w')
+if len(metaContent) != 0:
+	for key, value in metaContent.items():
+		pkgFile.write(key + " " + str(value) + "\n")
+pkgFile.close()
