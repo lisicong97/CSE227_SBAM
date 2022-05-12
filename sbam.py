@@ -5,7 +5,7 @@ import sys
 import requests
 from hashlib import sha512
 import json
-SERVER_IP = "http://127.0.0.1:5000"
+SERVER_IP = "http://100.64.213.178:5000/"
 
 # sbam message_name option1 option2...
 if len(sys.argv) == 1:
@@ -35,34 +35,32 @@ if message == 'new-user':
 	keyPair = RSA.generate(bits=1024)
 
 	# save the public key
-	publicKey = keyPair.publickey().export_key()
+	publicKey = keyPair.publickey().exportKey()
 	pubFile = open("publicKey.pem", "wb")
 	pubFile.write(publicKey)
 	pubFile.close()
 
 	# save the private key 
-	privateKey = keyPair.export_key()
+	privateKey = keyPair.exportKey()
 	priFile = open("privateKey.pem", "wb")
 	priFile.write(privateKey)
 	priFile.close()
 
 	# send userName to request sign message from server
 	userInfo = {'userName': userName, 'publicKey': {'e': keyPair.e, 'n': keyPair.n}}
-	data = json.dumps(userInfo)
-	response1 = requests.post(SERVER_IP + "/registerUser", data=data)
-	r1 = json.loads(response1)
-
+	response1 = requests.post(SERVER_IP + "/registerUser", data=userInfo)
+	r1 = response1.json()
     # deal with the message from the server
 	if r1['ifSuccess'] == False:
 		print("User Name Has Been Taken!")
 	else:
-		msg = r1['msg']
+		msg = response1['msg']
 		hash = int.from_bytes(sha512(msg).digest(), byteorder='big')
 		signature = pow(hash, keyPair.d, keyPair.n)
 		signInfo = {'userName': userName, 'signedMsg': signature, 'socialMedia': socialMedia}
-		data = json.dumps(signInfo)
-		response2 = requests.post(SERVER_IP + "/registerUserConfirm", data=data)
-		r2 = json.loads(response2)
+		#data = json.dumps(signInfo)
+		response2 = requests.post(SERVER_IP + "/registerUserConfirm", data=signInfo)
+		r2 = response2.json()
 		if r2['ifSuccess'] == False:
 			print("Register Failed!")
 		else:
@@ -75,9 +73,8 @@ if message == 'prove-identity':
 	post = sys.argv[4]
 	msg = sys.argv[5]
 	userInfo = {'userName': userName, 'socialMedia': socialMedia, 'post': post, 'msg': msg}
-	data = json.dumps(userInfo)
-	response = requests.post(SERVER_IP + "/proveIdentity", data=data)
-	r = json.loads(response)
+	response = requests.post(SERVER_IP + "/proveIdentity", data=userInfo)
+	r = response.json()
 	if r['ifProved']:
 		print("User Identity Confirmed Successfully!")
 	else:
@@ -95,13 +92,13 @@ if message == 'new-pkg':
 	pkgKeyPair = RSA.generate(bits=1024)
 
 	# save the public key
-	pkgPubKey = pkgKeyPair.publickey().export_key()
+	pkgPubKey = pkgKeyPair.publickey().exportKey()
 	pkgPubFile = open(pkgName+"pkgPubKey.pem", "wb")
 	pkgPubFile.write(pkgPubKey)
 	pkgPubFile.close()
 
 	# save the private key 
-	pkgPriKey = pkgKeyPair.export_key()
+	pkgPriKey = pkgKeyPair.exportKey()
 	pkgPriFile = open(pkgName+"pkgPriKey.pem", "wb")
 	pkgPriFile.write(pkgPriKey)
 	pkgPriFile.close()
@@ -122,10 +119,10 @@ if message == 'new-pkg':
 	hash = int.from_bytes(hash.digest(), byteorder='big')
 	signature = pow(hash, priKey.d, priKey.n)
 	pkgInfo = {'userName': userName, 'pkgName': pkgName, 'pkgContent': pkgContent, 'userSign': signature, 'pkgPublicKey': {'e': pkgKeyPair.e, 'n': pkgKeyPair.n}}
-	data = json.dumps(pkgInfo)
-	response = requests.post(SERVER_IP + "/registerPkg", data=data)
+	
+	response = requests.post(SERVER_IP + "/registerPkg", data=pkgInfo)
 
-	r = json.loads(response)
+	r = response.json()
 	if r['ifSuccess']:
 		# Write to the package meta file
 		metaContent[pkgName] = 0
@@ -142,12 +139,12 @@ if message == 'add-collaborator':
 	# generate key pair for the collaborate
 	colKeyPair = RSA.generate(bits=1024)
 	# save the public key
-	colPubKey = keyPair.publickey().export_key()
+	colPubKey = keyPair.publickey().exportKey()
 	colPubFile = open(colName+"publicKey.pem", "wb")
 	colPubFile.write(colPubKey)
 	colPubFile.close()
 	# save the private key 
-	colPriKey = keyPair.export_key()
+	colPriKey = keyPair.exportKey()
 	colPriFile = open(colName+"privateKey.pem", "wb")
 	colPriFile.write(colPriKey)
 	colPriFile.close()
@@ -160,9 +157,8 @@ if message == 'add-collaborator':
 	hash = int.from_bytes(sha512(str.encode(pkgName+colName)).digest(), byteorder='big')
 	signature = pow(hash, priPkgKey.d, priPkgKey.n)
 	colInfo = {'pkgName': pkgName, 'colName': colName, 'colPkgPublicKey':colPubKey, 'sign': signature}
-	data = json.dumps(colInfo)
-	response = requests.post(SERVER_IP + "/addCollaborator", data=data)
-	r = json.loads(response)
+	response = requests.post(SERVER_IP + "/addCollaborator", data=colInfo)
+	r = response.json()
 	if r['ifSuccess']:
 		print("Add Collaborator Succeed!")
 	else:
@@ -223,12 +219,12 @@ if message == 'replace-package-key':
 	# generate new key pair for the pkg
 	newPkgKeyPair = RSA.generate(bits=1024)
 	# save the public key
-	newPkgPubKey = newPkgKeyPair.publickey().export_key()
+	newPkgPubKey = newPkgKeyPair.publickey().exportKey()
 	newPkgPubFile = open(pkgName+"publicKey.pem", "wb")
 	newPkgPubFile.write(newPkgPubKey)
 	newPkgPubFile.close()
 	# save the private key 
-	newPkgPriKey = newPkgKeyPair.export_key()
+	newPkgPriKey = newPkgKeyPair.exportKey()
 	newPkgPriFile = open(pkgName+"privateKey.pem", "wb")
 	newPkgPriFile.write(newPkgPriKey)
 	newPkgPriFile.close()
@@ -242,9 +238,9 @@ if message == 'replace-package-key':
 	signature = pow(hash, priKey.d, priKey.n)
 
 	replaceInfo = {'pkgName': pkgName, 'oldPkgPublicKey': oldPubPkgKey, 'newPkgPublicKey': newPkgPubKey, 'sign': signature}
-	data = json.dumps(replaceInfo)
+	#data = json.dumps(replaceInfo)
 
-	response = requests.post(SERVER_IP + "/replacePkgKey", data=data)
+	response = requests.post(SERVER_IP + "/replacePkgKey", data=replaceInfo)
 	r = json.loads(response)
 	if r['ifSuccess']:
 		print("Replace Key Succeed!")
