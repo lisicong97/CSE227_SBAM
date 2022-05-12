@@ -203,7 +203,10 @@ if message == 'update-pkg':
 # sbam download-pkg pkgName
 if message == 'download-pkg':
 	pkgName = sys.argv[2]
-	response = requests.post(SERVER_IP + "/downloadPkg", data=pkgName)
+	response = requests.post(SERVER_IP + "/downloadPkg", data={'pkgName': pkgName})
+	with open (pkgName, 'w') as f:
+		f.write(json.loads(response.content)['content'])
+	print('file saved')
 
 
 # sbam replace-package-key pkgName

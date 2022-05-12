@@ -171,7 +171,7 @@ def updatePkg():
 def downloadPkg():
     pkgName = request.form['pkgName']
     pkgObj = pkgName2pkg[pkgName]
-    return str(pkgObj.contents[-1])
+    return json.dumps({'content': str(pkgObj.contents[-1])})
 
 
 # input: pkgName, oldPkgPublicKey, newPkgPublicKey, sign(owner's user key, encrypt all para)
