@@ -5,6 +5,7 @@ import sys
 import requests
 from hashlib import sha512
 import json
+SERVER_IP = "http://127.0.0.1:5000"
 
 # sbam message_name option1 option2...
 if len(sys.argv) == 1:
@@ -13,12 +14,15 @@ if len(sys.argv) == 1:
 message = sys.argv[1]
 
 # create the pkg file if non exist
-pkgFile = open("pkgVersion.txt", 'r')
+pkgFile = open("pkgVersion.txt", 'a')
 # load the meta content of packages to memeory
 metaContent = {}
-for line in pkgFile:
-	l = line.split(" ")
-	metaContent[l[0]] = int(l[1])
+try:
+	for line in pkgFile:
+		l = line.split(" ")
+		metaContent[l[0]] = int(l[1])
+except:
+	pass
 pkgFile.close()
 
 # sbam new-user userName socalMedia
@@ -45,7 +49,7 @@ if message == 'new-user':
 	# send userName to request sign message from server
 	userInfo = {'userName': userName, 'publicKey': {'e': keyPair.e, 'n': keyPair.n}}
 	data = json.dumps(userInfo)
-	response1 = requests.post("/registerUser", data=data)
+	response1 = requests.post(SERVER_IP + "/registerUser", data=data)
 	r1 = json.loads(response1)
 
     # deal with the message from the server
@@ -57,7 +61,7 @@ if message == 'new-user':
 		signature = pow(hash, keyPair.d, keyPair.n)
 		signInfo = {'userName': userName, 'signedMsg': signature, 'socialMedia': socialMedia}
 		data = json.dumps(signInfo)
-		response2 = requests.post("/registerUserConfirm", data=data)
+		response2 = requests.post(SERVER_IP + "/registerUserConfirm", data=data)
 		r2 = json.loads(response2)
 		if r2['ifSuccess'] == False:
 			print("Register Failed!")
@@ -72,7 +76,7 @@ if message == 'prove-identity':
 	msg = sys.argv[5]
 	userInfo = {'userName': userName, 'socialMedia': socialMedia, 'post': post, 'msg': msg}
 	data = json.dumps(userInfo)
-	response = requests.post("/proveIdentity", data=data)
+	response = requests.post(SERVER_IP + "/proveIdentity", data=data)
 	r = json.loads(response)
 	if r['ifProved']:
 		print("User Identity Confirmed Successfully!")
@@ -119,7 +123,7 @@ if message == 'new-pkg':
 	signature = pow(hash, priKey.d, priKey.n)
 	pkgInfo = {'userName': userName, 'pkgName': pkgName, 'pkgContent': pkgContent, 'userSign': signature, 'pkgPublicKey': {'e': pkgKeyPair.e, 'n': pkgKeyPair.n}}
 	data = json.dumps(pkgInfo)
-	response = requests.post("/registerPkg", data=data)
+	response = requests.post(SERVER_IP + "/registerPkg", data=data)
 
 	r = json.loads(response)
 	if r['ifSuccess']:
@@ -157,7 +161,7 @@ if message == 'add-collaborator':
 	signature = pow(hash, priPkgKey.d, priPkgKey.n)
 	colInfo = {'pkgName': pkgName, 'colName': colName, 'colPkgPublicKey':colPubKey, 'sign': signature}
 	data = json.dumps(colInfo)
-	response = requests.post("/addCollaborator", data=data)
+	response = requests.post(SERVER_IP + "/addCollaborator", data=data)
 	r = json.loads(response)
 	if r['ifSuccess']:
 		print("Add Collaborator Succeed!")
@@ -171,7 +175,7 @@ if message == 'update-pkg':
 	pkgName = sys.argv[2]
 	userName = sys.argv[3]
 	updatedPkgPath = sys.argv[4]
-	version = metaContent[pkgName]
+	version = metaContent[pkgName] if pkgName in metaContent  else 0
 
 	updatedPkgContent = open(updatedPkgPath, 'rb')
 
@@ -180,13 +184,14 @@ if message == 'update-pkg':
 	priPkgKey = RSA.importKey(f.read())
 
 	#sign
-	hash = int.from_bytes(sha512(str.encode(pkgName+version+updatedPkgContent)).digest(), byteorder='big')
+	hash = int.from_bytes(sha512(str.encode(pkgName+version+str(updatedPkgContent.read()))).digest(), byteorder='big')
 	signature = pow(hash, priPkgKey.d, priPkgKey.n)
 
-	updatedPkgInfo = {'pkgName':pkgName, 'userName': userName, 'pkgContent': updatedPkgContent, 'version': version+1, 'sign':signature}
-	data = json.dumps(updatedPkgInfo)
-	response = requests.post("/updatePkg", data=data)
-	r = json.loads(response)
+	file = {'pkgContent': updatedPkgContent}
+	data = {'pkgName':pkgName, 'userName': userName, 'version': version+1, 'sign':1}
+	response = requests.post(SERVER_IP + "/updatePkg", files=file, data=data)
+	print(response.content)
+	r = json.loads(response.content)
 	if r['ifSuccess']:
 		# update the pkg version after update package successfully
 		metaContent[pkgName] = version + 1
@@ -198,7 +203,7 @@ if message == 'update-pkg':
 # sbam download-pkg pkgName
 if message == 'download-pkg':
 	pkgName = sys.argv[2]
-	response = requests.post("/downloadPkg", data=pkgName)
+	response = requests.post(SERVER_IP + "/downloadPkg", data=pkgName)
 
 
 # sbam replace-package-key pkgName
@@ -236,7 +241,7 @@ if message == 'replace-package-key':
 	replaceInfo = {'pkgName': pkgName, 'oldPkgPublicKey': oldPubPkgKey, 'newPkgPublicKey': newPkgPubKey, 'sign': signature}
 	data = json.dumps(replaceInfo)
 
-	response = requests.post("/replacePkgKey", data=data)
+	response = requests.post(SERVER_IP + "/replacePkgKey", data=data)
 	r = json.loads(response)
 	if r['ifSuccess']:
 		print("Replace Key Succeed!")
