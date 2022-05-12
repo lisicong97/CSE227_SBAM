@@ -27,8 +27,9 @@ pkgFile.close()
 
 # sbam new-user userName socalMedia
 if message == 'new-user':
-	if len(sys.argv) < 3:
+	if len(sys.argv) != 4:
 		print("Please type in your user name and social media account name")
+		sys.exit()
 
 	userName = sys.argv[2]
 	socialMedia = sys.argv[3]
@@ -50,7 +51,7 @@ if message == 'new-user':
 	userInfo = {'userName': userName, 'publicKey': json.dumps({'e': keyPair.e, 'n': keyPair.n})}
 	response1 = requests.post(SERVER_IP + "/registerUser", data=userInfo)
 	r1 = response1.json()
-    # deal with the message from the server
+	# deal with the message from the server
 	if r1['ifSuccess'] == False:
 		print("User Name Has Been Taken!")
 	else:
