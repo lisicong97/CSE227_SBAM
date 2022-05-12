@@ -33,7 +33,7 @@ def hello_world():
 def registerUser():
     userName = request.form['userName']
     publicKey = json.loads(request.form['publicKey'])
-    if userName2userId[userName] is not None:
+    if userName in userName2userId:
         return json.dumps({'ifSuccess': False})
     else:
         userName2signMsg[userName] = str(time.time_ns())
