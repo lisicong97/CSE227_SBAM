@@ -5,7 +5,7 @@ import sys
 import requests
 from hashlib import sha512
 import json
-SERVER_IP = "http://100.64.213.178:5000/"
+SERVER_IP = "http://127.0.0.1:5000/"
 
 # sbam message_name option1 option2...
 if len(sys.argv) == 1:
@@ -47,15 +47,15 @@ if message == 'new-user':
 	priFile.close()
 
 	# send userName to request sign message from server
-	userInfo = {'userName': userName, 'publicKey': {'e': keyPair.e, 'n': keyPair.n}}
+	userInfo = {'userName': userName, 'publicKey': json.dumps({'e': keyPair.e, 'n': keyPair.n})}
 	response1 = requests.post(SERVER_IP + "/registerUser", data=userInfo)
 	r1 = response1.json()
     # deal with the message from the server
 	if r1['ifSuccess'] == False:
 		print("User Name Has Been Taken!")
 	else:
-		msg = response1['msg']
-		hash = int.from_bytes(sha512(msg).digest(), byteorder='big')
+		msg = r1['msg']
+		hash = int.from_bytes(sha512(str.encode(msg)).digest(), byteorder='big')
 		signature = pow(hash, keyPair.d, keyPair.n)
 		signInfo = {'userName': userName, 'signedMsg': signature, 'socialMedia': socialMedia}
 		#data = json.dumps(signInfo)
