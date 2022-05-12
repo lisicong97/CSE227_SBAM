@@ -185,7 +185,7 @@ if message == 'update-pkg':
 	signature = pow(hash, priPkgKey.d, priPkgKey.n)
 
 	file = {'pkgContent': updatedPkgContent}
-	data = {'pkgName':pkgName, 'userName': userName, 'version': version+1, 'sign':1}
+	data = {'pkgName':pkgName, 'userName': userName, 'version': version+1, 'sign': signature}
 	response = requests.post(SERVER_IP + "/updatePkg", files=file, data=data)
 	print(response.content)
 	r = json.loads(response.content)
