@@ -144,7 +144,7 @@ def addCollaborator():
 
 
 # input:
-# pkgName, version, userName, sign (use pkgKey to encrypt pkgName+version), pkgContent
+# pkgName, version, userName, sign (use pkgKey to encrypt pkgName+version+pkgContent), pkgContent
 # output:
 # {'ifSuccess': 'True'}
 @app.route('/updatePkg', methods=['POST'])
@@ -157,7 +157,7 @@ def updatePkg():
     pkgObj = pkgName2pkg[pkgName]
     pkgPubKey = pkgObj.colPublicKey[pkgObj.colUsers.index(userName2user[userName])]
     if pow(int(sign), pkgPubKey['e'], pkgPubKey['n']) == \
-            int.from_bytes(sha512(str.encode(pkgName+version)).digest(), byteorder='big') and \
+            int.from_bytes(sha512(str.encode(pkgName+version+pkgContent)).digest(), byteorder='big') and \
             pkgObj.version + 1 == version:
         pkgObj.version += 1
         pkgObj.contents.append(pkgContent)
