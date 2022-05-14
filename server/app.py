@@ -149,12 +149,16 @@ def addCollaborator():
 # {'ifSuccess': 'True'}
 @app.route('/updatePkg', methods=['POST'])
 def updatePkg():
+    print("received")
     pkgContent = request.files['pkgContent']
     pkgName = request.form['pkgName']
     userName = request.form['userName']
     version = request.form['version']
     sign = request.form['sign']
-    pkgObj = pkgName2pkg[pkgName]
+    if pkgName in pkgName2pkg:
+      pkgObj = pkgName2pkg[pkgName]
+    else:
+      return json.dumps({'ifSuccess': False})
     pkgPubKey = pkgObj.colPublicKey[pkgObj.colUsers.index(userName2user[userName])]
     if pow(int(sign), pkgPubKey['e'], pkgPubKey['n']) == \
             int.from_bytes(sha512(str.encode(pkgName+version+str(pkgContent.read()))).digest(), byteorder='big') and \
