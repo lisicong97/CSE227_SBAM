@@ -25,6 +25,12 @@ To interact with server, using command below:
 python sbam.py {paras}
 ```
 
+Here is a list of commands and corresponding parameters needed for clients:
+
+ Commands      |  parameters    |     Description 
+ -------- | :-----------:  | :-----------
+new-user     | userName, socialMedia     | register new user with customized user name and the social media account name which used to prove user's identify later.
+
 Update 4.24
 
 * Check data_struct_design.txt(deprecated) to see the data structure and function design
