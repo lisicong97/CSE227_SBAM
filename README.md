@@ -25,22 +25,16 @@ To interact with server, using command below:
 python sbam.py {paras}
 ```
 
-Here is a list of commands and corresponding parameters needed for clients:
+Here is a list of commands and parameters needed for clients:
 
- Commands      |  parameters    |     Description 
+ Commands      |  Parameters    |     Description 
  -------- | :-----------:  | :-----------
 new-user     | userName, socialMedia     | register new user with customized user name and the social media account name which used to prove user's identify later
--------- | :-----------:  | :-----------
 prove-identity     | userName, socialMedia, post, message     | prove the identity of given userName and its associate social media account with encrypted post and normal message
--------- | :-----------:  | :-----------
 new-pkg     | userName, pkgName, pathToFile | register new package with user name, customized package name and the path to the package
--------- | :-----------:  | :-----------
 add-collaborator  | pkgName, collaborator name | add collaborator to the package 
--------- | :-----------:  | :-----------
 update-pkg  | pkgName, userName, pathToUpdatedPkg | update corresponding package with pkgName, userName and the path to the updated package
--------- | :-----------:  | :-----------
 download-pkg  | pkgName | download package with pkgName
--------- | :-----------:  | :-----------
 replace-package-key  | pkgName | replace the key of the package
 
 
