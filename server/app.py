@@ -1,5 +1,5 @@
 from hashlib import sha512
-
+import os
 from flask import Flask, request
 import json
 import time
@@ -100,20 +100,47 @@ def proveIdentity():
 # {ifSuccess: 'True'}
 @app.route('/registerPkg', methods=['POST'])
 def registerPkg():
-    pkgContent = request.files['pkgContent']
+    # print(request.form['pkgPublicKey'])
+    pkgContent = request.files['f']
+    metaInfo = request.files['meta']
     pkgName = request.form['pkgName']
     userName = request.form['userName']
+
     pkgPubKey = json.loads(request.form['pkgPublicKey'])
     userSign = request.form['userSign']
+    # print(int(userSign))
+    if userName not in userName2publicKey:
+      return json.dumps({'ifSuccess': False, 'message': "user not registered"})
+    if pkgName in pkgName2pkg:
+      return json.dumps({'ifSuccess': False, 'message': "this package is already registered"})
+
     userPubKey = userName2publicKey[userName]
-    if userPubKey is None:
-        return json.dumps({'ifSuccess': False})
-    if pow(int(userSign), userPubKey['e'], userPubKey['n']) == \
-            int.from_bytes(sha512(pkgContent.stream).digest(), byteorder='big') and \
-            pkgName not in pkgName2pkg:
+
+    hash = sha512()
+    
+    chunk = 0
+    while chunk != b'':
+      chunk = pkgContent.read(1024)
+      hash.update(chunk)
+    chunk = 0
+    while chunk != b'':
+      chunk = metaInfo.read(1024)
+      hash.update(chunk)
+    hash = int.from_bytes(hash.digest(), byteorder='big')
+    # print(pkgContent)
+    if pow(int(userSign), userPubKey['e'], userPubKey['n']) == hash:
         pkgName2pkg[pkgName] = Package(pkgName, 0, [pkgContent], userName, [userName2user[userName]], [pkgPubKey])
+        pkgPath = ("./storage/" + pkgName)
+        os.mkdir(pkgPath)
+        os.mkdir(pkgPath + "/Content")
+        #  read the content from start
+        pkgContent.seek(0)
+        with open(pkgPath + "/Content/" + pkgName , "wb") as output:
+          for line in pkgContent:
+              output.write(line)
+
         return json.dumps({'ifSuccess': True})
-    return json.dumps({'ifSuccess': False})
+    return json.dumps({'ifSuccess': False, 'message': 'identity not proved'})
 
 
 # input:
