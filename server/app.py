@@ -4,19 +4,24 @@ from flask import Flask, request
 import json
 import time
 from Crypto.PublicKey import RSA
-
+import helper
 from User import User
-from Package import  Package
+from Package import Package
 
 app = Flask(__name__)
 
-userName2user = {}
-pkgName2pkg = {}
 
-userName2userId = {}
+pkgName2pkg = helper.convertJson2Pkg()
+pkgJson = helper.getPkgJson()
+
+
+# userName2userId = {}
 userName2signMsg = {}
 userName2publicKey = {}
-currentUserId = 0
+userName2user = helper.convertJson2User()
+usersJson = helper.getUserJson()
+# print(users)
+currentUserId = len(userName2publicKey)
 
 
 @app.route('/')
@@ -33,8 +38,10 @@ def hello_world():
 def registerUser():
     userName = request.form['userName']
     publicKey = json.loads(request.form['publicKey'])
-    if userName in userName2userId:
-        return json.dumps({'ifSuccess': False})
+    # print(userName2userId.keys)
+    # print(userName2userId)
+    if userName in userName2user:
+        return json.dumps({'ifSuccess': False, 'message': 'user name already exist'})
     else:
         userName2signMsg[userName] = str(time.time_ns())
         userName2publicKey[userName] = publicKey
@@ -61,10 +68,17 @@ def confirmUser():
     if hash == hashFromSignature:
         global currentUserId
         currentUserId += 1
-        userName2user[userName] = User(currentUserId, userName, publicKey, socialMedia)
-        return json.dumps({'ifSuccess': True})
+        userName2user[userName] = User(
+            currentUserId, userName, publicKey, socialMedia)
+        # update the users json file
+        usersJson[userName] = {"userId": currentUserId, "username": userName,
+                               "publicKey": publicKey, "socialMedia": socialMedia}
+
+        helper.updateUserJson(usersJson)
+
+        return json.dumps({'ifSuccess': True, 'userId': currentUserId})
     else:
-        return json.dumps({'ifSuccess': False})
+        return json.dumps({'ifSuccess': False, 'message': 'hash inconsistent'})
 
 
 # if msg after sign is post, return true
@@ -103,41 +117,60 @@ def registerPkg():
     # print(request.form['pkgPublicKey'])
     pkgContent = request.files['f']
     metaInfo = request.files['meta']
-    pkgName = request.form['pkgName']
-    userName = request.form['userName']
+    metaJson = json.load(metaInfo)
+    metaInfo.seek(0)
 
-    pkgPubKey = json.loads(request.form['pkgPublicKey'])
+    pkgName = metaJson["pkgName"]
+    # pkgName = request.form['pkgName']
+    # userName = request.form['userName']
+    userName = metaJson["userName"]
+
+    pkgPubKey = metaJson["pkgPubKey"]
     userSign = request.form['userSign']
     # print(int(userSign))
     if userName not in userName2publicKey:
-      return json.dumps({'ifSuccess': False, 'message': "user not registered"})
+        return json.dumps({'ifSuccess': False, 'message': "user not registered"})
     if pkgName in pkgName2pkg:
-      return json.dumps({'ifSuccess': False, 'message': "this package is already registered"})
+        return json.dumps({'ifSuccess': False, 'message': "this package is already registered"})
 
     userPubKey = userName2publicKey[userName]
 
     hash = sha512()
-    
+
     chunk = 0
     while chunk != b'':
-      chunk = pkgContent.read(1024)
-      hash.update(chunk)
+        chunk = pkgContent.read(1024)
+        hash.update(chunk)
     chunk = 0
     while chunk != b'':
-      chunk = metaInfo.read(1024)
-      hash.update(chunk)
+        chunk = metaInfo.read(1024)
+        hash.update(chunk)
     hash = int.from_bytes(hash.digest(), byteorder='big')
     # print(pkgContent)
     if pow(int(userSign), userPubKey['e'], userPubKey['n']) == hash:
-        pkgName2pkg[pkgName] = Package(pkgName, 0, [pkgContent], userName, [userName2user[userName]], [pkgPubKey])
+        pkgName2pkg[pkgName] = Package(
+            pkgName, 0, userName, [userName2user[userName]], [pkgPubKey])
+        print(pkgName)
+        pkgJson[pkgName] = {"pkgName": pkgName, "version": 0, "ownername": userName, "colUsers": [
+            userName2user[userName].username], "colPublicKey": [pkgPubKey]}
+        # print(pkgJson)
         pkgPath = ("./storage/" + pkgName)
         os.mkdir(pkgPath)
         os.mkdir(pkgPath + "/Content")
+
+        helper.updatePkgJson(pkgJson)
+
         #  read the content from start
         pkgContent.seek(0)
-        with open(pkgPath + "/Content/" + pkgName , "wb") as output:
-          for line in pkgContent:
-              output.write(line)
+        metaInfo.seek(0)
+
+        # write to storage
+        with open(pkgPath + "/Content/" + pkgName, "wb") as output:
+            for line in pkgContent:
+                output.write(line)
+        with open(pkgPath + "/pkgInfo.json", "wb") as output:
+            for line in metaInfo:
+                output.write(line)
 
         return json.dumps({'ifSuccess': True})
     return json.dumps({'ifSuccess': False, 'message': 'identity not proved'})
@@ -178,20 +211,56 @@ def addCollaborator():
 def updatePkg():
     print("received")
     pkgContent = request.files['pkgContent']
-    pkgName = request.form['pkgName']
-    userName = request.form['userName']
-    version = request.form['version']
+    metaInfo = request.files['meta']
+    metaJson = json.load(metaInfo)
+    metaInfo.seek(0)
+    pkgName = metaJson['pkgName']
+    userName = metaJson['userName']
+    version = metaJson['version']
     sign = request.form['sign']
+    pkgObj = None
     if pkgName in pkgName2pkg:
-      pkgObj = pkgName2pkg[pkgName]
+        pkgObj = pkgName2pkg[pkgName]
     else:
-      return json.dumps({'ifSuccess': False})
-    pkgPubKey = pkgObj.colPublicKey[pkgObj.colUsers.index(userName2user[userName])]
-    if pow(int(sign), pkgPubKey['e'], pkgPubKey['n']) == \
-            int.from_bytes(sha512(str.encode(pkgName+version+str(pkgContent.read()))).digest(), byteorder='big') and \
-            pkgObj.version + 1 == version:
+        return json.dumps({'ifSuccess': False, 'message': 'this package is not registered'})
+
+    if pkgObj.version != version:
+        return json.dumps({'ifSuccess': False, 'message': 'current vesion is not connsistent with the previous version, please download the newest before update'})
+
+    hash = sha512()
+    chunk = 0
+    while chunk != b'':
+        chunk = pkgContent.read(1024)
+        hash.update(chunk)
+
+    chunk = 0
+    while chunk != b'':
+        chunk = metaInfo.read(1024)
+        hash.update(chunk)
+
+    metaInfo.seek(0)
+    pkgContent.seek(0)
+
+    # sign the file content
+    hash = int.from_bytes(hash.digest(), byteorder='big')
+    pkgPubKey = pkgObj.colPublicKey[pkgObj.colUsers.index(
+        userName2user[userName])]
+
+    # calculate the hash based on the package content and meta data
+    if pow(int(sign), pkgPubKey['e'], pkgPubKey['n']) == hash:
         pkgObj.version += 1
-        pkgObj.contents.append(pkgContent)
+        pkgJson[pkgName]['version'] += 1
+        helper.updatePkgJson(pkgJson)
+        
+        pkgPath = ("./storage/" + pkgName)
+
+        with open(pkgPath + "/Content/" + pkgName, "wb") as output:
+            for line in pkgContent:
+                output.write(line)
+        with open(pkgPath + "/pkgInfo.json", "wb") as output:
+            for line in metaInfo:
+                output.write(line)
+        # pkgObj.contents.append(pkgContent)
         return json.dumps({'ifSuccess': True})
     return json.dumps({'ifSuccess': False})
 
@@ -202,7 +271,8 @@ def updatePkg():
 def downloadPkg():
     pkgName = request.form['pkgName']
     pkgObj = pkgName2pkg[pkgName]
-    return json.dumps({'content': str(pkgObj.contents[-1])})
+    # TODO
+    return json.dumps({'content': 'str(pkgObj.contents[-1])'})
 
 
 # input: pkgName, oldPkgPublicKey, newPkgPublicKey, sign(owner's user key, encrypt all para)
@@ -216,7 +286,8 @@ def replacePkgKey():
     ownerKey = userName2publicKey[pkgObj.ownername]
     if pow(int(sign), ownerKey['e'], ownerKey['n']) == \
             int.from_bytes(sha512(str.encode(pkgName+str(oldPkgPublicKey)+str(newPkgPublicKey))).digest(), byteorder='big'):
-        pkgObj.colPublicKey[pkgObj.colPublicKey.index(oldPkgPublicKey)] = newPkgPublicKey
+        pkgObj.colPublicKey[pkgObj.colPublicKey.index(
+            oldPkgPublicKey)] = newPkgPublicKey
         return json.dumps({'ifSuccess': True})
     return json.dumps({'ifSuccess': False})
 

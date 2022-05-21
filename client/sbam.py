@@ -5,6 +5,7 @@ import sys
 import requests
 from hashlib import sha512
 import json
+import helper
 
 SERVER_IP = "http://127.0.0.1:5000/"
 
@@ -14,9 +15,9 @@ if len(sys.argv) == 1:
 
 message = ""
 try:
-  message = sys.argv[1]
+    message = sys.argv[1]
 except:
-  print("message not specified")
+    print("message not specified")
 
 # create the pkg file if non exist
 pkgFile = open("pkgVersion.txt", 'a')
@@ -142,10 +143,12 @@ if message == 'new-pkg':
     priKey = RSA.importKey(f.read())
 
     # put the pkg info into json file
-    meta = {"version" : 0,'pkgName': pkgName, 'userName': userName,  'collaborators': [],"pkgPubKey": {"e": pkgKeyPair.e, 'n': pkgKeyPair.n}}
+    meta = {"version": 0, 'pkgName': pkgName, 'userName': userName,
+            'collaborators': [], "pkgPubKey": {"e": pkgKeyPair.e, 'n': pkgKeyPair.n}}
+    helper.updatePkgJson(meta, "./pkgStorage")
     with open('./pkgStorage/pkgInfo.json', 'w') as out_file:
-      json.dump(meta, out_file, sort_keys = True, indent = 4,
-               ensure_ascii = False)
+        json.dump(meta, out_file, sort_keys=True, indent=4,
+                  ensure_ascii=False)
 
     # create hash of file stream: https://howtodoinjava.com/modules/python-find-file-hash/
     hash = hashlib.sha512()
@@ -154,24 +157,23 @@ if message == 'new-pkg':
         while chunk != b'':
             chunk = file.read(1024)
             hash.update(chunk)
-    
+
     with open('./pkgStorage/pkgInfo.json', 'rb') as meta:
-      chunk = 0
-      while chunk != b'':
-          chunk = meta.read(1024)
-          hash.update(chunk)
-    
+        chunk = 0
+        while chunk != b'':
+            chunk = meta.read(1024)
+            hash.update(chunk)
 
     # sign the file content
     hash = int.from_bytes(hash.digest(), byteorder='big')
     signature = pow(hash, priKey.d, priKey.n)
     # print(hash)
 
-    
-    pkgInfo = {'userName': userName, 'pkgName': pkgName, 
+    pkgInfo = {'userName': userName, 'pkgName': pkgName,
                'userSign': signature, 'pkgPublicKey': json.dumps({'e': pkgKeyPair.e, 'n': pkgKeyPair.n})}
 
-    response = requests.post(SERVER_IP + "/registerPkg", data=pkgInfo, files={"f": pkgContent, 'meta': open('./pkgStorage/pkgInfo.json', 'rb')})
+    response = requests.post(SERVER_IP + "/registerPkg", data=pkgInfo, files={
+                             "f": pkgContent, 'meta': open('./pkgStorage/pkgInfo.json', 'rb')})
 
     r = response.json()
     if r['ifSuccess']:
@@ -214,6 +216,7 @@ if message == 'add-collaborator':
     # sign the pkgName + colName
     hash = int.from_bytes(
         sha512(str.encode(pkgName+colName)).digest(), byteorder='big')
+
     signature = pow(hash, priPkgKey.d, priPkgKey.n)
     colInfo = {'pkgName': pkgName, 'colName': colName,
                'colPkgPublicKey': colPubKey, 'sign': signature}
@@ -236,34 +239,54 @@ argv[4]: the path of updated package
 """
 # sbam update-pkg pkgName userName updatedPkgPath
 if message == 'update-pkg':
-    pkgName = sys.argv[2]
-    userName = sys.argv[3]
-    updatedPkgPath = sys.argv[4]
-    version = metaContent[pkgName] if pkgName in metaContent else 0
-
-    updatedPkgContent = open(updatedPkgPath, 'rb')
+    try:
+        pkgName = sys.argv[2]
+        userName = sys.argv[3]
+        updatedPkgPath = sys.argv[4]
+    except:
+        print("Update Package Error: incorrect number of args")
 
     # get the corresponding pkg private key
-    f = open(pkgName+'pkgPriKey.pem', 'r')
-    priPkgKey = RSA.importKey(f.read())
+    key = open('./pkgStorage/key/' + pkgName + 'pkgPriKey.pem', 'r')
+    priPkgKey = RSA.importKey(key.read())
 
     # sign
-    hash = int.from_bytes(sha512(str.encode(
-        pkgName+version+str(updatedPkgContent.read()))).digest(), byteorder='big')
+
+    hash = hashlib.sha512()
+    with open("./pkgStorage/Content/" + updatedPkgPath, 'rb') as file:
+        chunk = 0
+        while chunk != b'':
+            chunk = file.read(1024)
+            hash.update(chunk)
+
+    with open('./pkgStorage/pkgInfo.json', 'rb') as meta:
+        chunk = 0
+        while chunk != b'':
+            chunk = meta.read(1024)
+            hash.update(chunk)
+
+    # sign the file content
+    hash = int.from_bytes(hash.digest(), byteorder='big')
     signature = pow(hash, priPkgKey.d, priPkgKey.n)
 
-    file = {'pkgContent': updatedPkgContent}
+    updatedPkgContent = open('./pkgStorage/Content/' + updatedPkgPath, 'rb')
+    metaFile = open('./pkgStorage/pkgInfo.json', 'rb')
+    file = {'pkgContent': updatedPkgContent, 'meta': metaFile}
     data = {'pkgName': pkgName, 'userName': userName,
-            'version': version+1, 'sign': signature}
+            'sign': signature}
     response = requests.post(SERVER_IP + "/updatePkg", files=file, data=data)
+
     print(response.content)
     r = json.loads(response.content)
     if r['ifSuccess']:
         # update the pkg version after update package successfully
-        metaContent[pkgName] = version + 1
+        # metaContent[pkgName] = version + 1
+        metaJson = helper.getPkgJson("./pkgStorage/")
+        metaJson['version'] += 1
+        helper.updatePkgJson(metaJson, "./pkgStorage")
         print("Update Package Succeed!")
     else:
-        print("Update Package Failed")
+        print(r["message"])
 
 
 """
