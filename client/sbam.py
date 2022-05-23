@@ -6,6 +6,10 @@ import requests
 from hashlib import sha512
 import json
 import helper
+import zipfile
+import os
+
+from io import BytesIO
 
 SERVER_IP = "http://127.0.0.1:5000/"
 
@@ -44,45 +48,46 @@ if message == 'new-user':
     if len(sys.argv) != 4:
         print("Please type in your user name and social media account name")
         sys.exit()
+
+    userName = sys.argv[2]
+    socialMedia = sys.argv[3]
+    keyPair = RSA.generate(bits=1024)
+    userKeyPath = "./UserKeys/" + userName
+
+    # save the public key
+    publicKey = keyPair.publickey().exportKey()
+    pubFile = open(userKeyPath + "/publicKey.pem", "wb")
+    pubFile.write(publicKey)
+    pubFile.close()
+
+    # save the private key
+    privateKey = keyPair.exportKey()
+    priFile = open(userKeyPath + "/privateKey.pem", "wb")
+    priFile.write(privateKey)
+    priFile.close()
+
+    # send userName to request sign message from server
+    userInfo = {'userName': userName, 'publicKey': json.dumps(
+        {'e': keyPair.e, 'n': keyPair.n})}
+    response1 = requests.post(SERVER_IP + "/registerUser", data=userInfo)
+    r1 = response1.json()
+    # deal with the message from the server
+    if r1['ifSuccess'] == False:
+        print("User Name Has Been Taken!")
     else:
-        userName = sys.argv[2]
-        socialMedia = sys.argv[3]
-        keyPair = RSA.generate(bits=1024)
-
-        # save the public key
-        publicKey = keyPair.publickey().exportKey()
-        pubFile = open("publicKey.pem", "wb")
-        pubFile.write(publicKey)
-        pubFile.close()
-
-        # save the private key
-        privateKey = keyPair.exportKey()
-        priFile = open("privateKey.pem", "wb")
-        priFile.write(privateKey)
-        priFile.close()
-
-        # send userName to request sign message from server
-        userInfo = {'userName': userName, 'publicKey': json.dumps(
-            {'e': keyPair.e, 'n': keyPair.n})}
-        response1 = requests.post(SERVER_IP + "/registerUser", data=userInfo)
-        r1 = response1.json()
-        # deal with the message from the server
-        if r1['ifSuccess'] == False:
-            print("User Name Has Been Taken!")
+        msg = r1['msg']
+        hash = int.from_bytes(
+            sha512(str.encode(msg)).digest(), byteorder='big')
+        signature = pow(hash, keyPair.d, keyPair.n)
+        signInfo = {'userName': userName,
+                    'signedMsg': signature, 'socialMedia': socialMedia}
+        response2 = requests.post(
+            SERVER_IP + "/registerUserConfirm", data=signInfo)
+        r2 = response2.json()
+        if r2['ifSuccess'] == False:
+            print("Register Failed!")
         else:
-            msg = r1['msg']
-            hash = int.from_bytes(
-                sha512(str.encode(msg)).digest(), byteorder='big')
-            signature = pow(hash, keyPair.d, keyPair.n)
-            signInfo = {'userName': userName,
-                        'signedMsg': signature, 'socialMedia': socialMedia}
-            response2 = requests.post(
-                SERVER_IP + "/registerUserConfirm", data=signInfo)
-            r2 = response2.json()
-            if r2['ifSuccess'] == False:
-                print("Register Failed!")
-            else:
-                print("Register Succeed!")
+            print("Register Succeed!")
 
 """
 Message: prove identity
@@ -121,48 +126,47 @@ if message == 'new-pkg':
     userName = sys.argv[2]
     pkgName = sys.argv[3]
     pkgPath = sys.argv[4]
-    pkgContent = open("./pkgStorage/Content/" + pkgPath, 'rb')
-
+    pkgContent = open(pkgPath + "/Content/pkgcontent", 'rb')
+    pkgKeyPath = "./UserKeys/" + userName + "/pkgKeys/" + pkgName
+    userKeyPath = "./UserKeys/" + userName
     # generate the pkg key pair
     pkgKeyPair = RSA.generate(bits=1024)
 
+
     # save the public key
     pkgPubKey = pkgKeyPair.publickey().exportKey()
-    pkgPubFile = open("./pkgStorage/key/" + pkgName+"pkgPubKey.pem", "wb")
+
+    pkgPubFile = open(pkgKeyPath + "/pkgPubKey.pem", "wb")
     pkgPubFile.write(pkgPubKey)
     pkgPubFile.close()
 
     # save the private key
     pkgPriKey = pkgKeyPair.exportKey()
-    pkgPriFile = open("./pkgStorage/key/" + pkgName+"pkgPriKey.pem", "wb")
+    pkgPriFile = open(pkgKeyPath + "/pkgPriKey.pem", "wb")
     pkgPriFile.write(pkgPriKey)
     pkgPriFile.close()
 
+    
+
     # get the user private key
-    f = open('privateKey.pem', 'rb')
+    f = open(userKeyPath + '/privateKey.pem', 'rb')
     priKey = RSA.importKey(f.read())
 
     # put the pkg info into json file
     meta = {"version": 0, 'pkgName': pkgName, 'userName': userName,
             'collaborators': [], "pkgPubKey": {"e": pkgKeyPair.e, 'n': pkgKeyPair.n}}
-    helper.updatePkgJson(meta, "./pkgStorage")
-    with open('./pkgStorage/pkgInfo.json', 'w') as out_file:
+    helper.updatePkgJson(meta, pkgPath)
+    with open(pkgPath + '/pkgInfo.json', 'w') as out_file:
         json.dump(meta, out_file, sort_keys=True, indent=4,
                   ensure_ascii=False)
 
+    #compress the whole package directory
+    helper.compressFile(pkgPath, pkgName + '.zip')
+
     # create hash of file stream: https://howtodoinjava.com/modules/python-find-file-hash/
     hash = hashlib.sha512()
-    with open("./pkgStorage/Content/" + pkgPath, 'rb') as file:
-        chunk = 0
-        while chunk != b'':
-            chunk = file.read(1024)
-            hash.update(chunk)
-
-    with open('./pkgStorage/pkgInfo.json', 'rb') as meta:
-        chunk = 0
-        while chunk != b'':
-            chunk = meta.read(1024)
-            hash.update(chunk)
+    hash = helper.updateHash(pkgName + '.zip', hash)
+    hash = helper.updateHash(pkgPath + '/pkgInfo.json', hash)
 
     # sign the file content
     hash = int.from_bytes(hash.digest(), byteorder='big')
@@ -173,7 +177,8 @@ if message == 'new-pkg':
                'userSign': signature, 'pkgPublicKey': json.dumps({'e': pkgKeyPair.e, 'n': pkgKeyPair.n})}
 
     response = requests.post(SERVER_IP + "/registerPkg", data=pkgInfo, files={
-                             "f": pkgContent, 'meta': open('./pkgStorage/pkgInfo.json', 'rb')})
+                             "f": open(pkgName + '.zip', 'rb'), 'meta': open(pkgPath + '/pkgInfo.json', 'rb')})
+    os.remove(pkgName + '.zip')
 
     r = response.json()
     if r['ifSuccess']:
@@ -246,44 +251,41 @@ if message == 'update-pkg':
     except:
         print("Update Package Error: incorrect number of args")
 
+    pkgKeyPath = "./UserKeys/" + userName + "/pkgKeys/" + pkgName
     # get the corresponding pkg private key
-    key = open('./pkgStorage/key/' + pkgName + 'pkgPriKey.pem', 'r')
+    key = open(pkgKeyPath + '/pkgPriKey.pem', 'r')
     priPkgKey = RSA.importKey(key.read())
 
-    # sign
 
-    hash = hashlib.sha512()
-    with open("./pkgStorage/Content/" + updatedPkgPath, 'rb') as file:
-        chunk = 0
-        while chunk != b'':
-            chunk = file.read(1024)
-            hash.update(chunk)
-
-    with open('./pkgStorage/pkgInfo.json', 'rb') as meta:
-        chunk = 0
-        while chunk != b'':
-            chunk = meta.read(1024)
-            hash.update(chunk)
+    #compress the whole package directory
+    helper.compressFile(updatedPkgPath, pkgName + '.zip')
 
     # sign the file content
+
+    hash = hashlib.sha512()
+
+    hash = helper.updateHash(pkgName + '.zip', hash)
+    hash = helper.updateHash(updatedPkgPath + '/pkgInfo.json', hash)
+
     hash = int.from_bytes(hash.digest(), byteorder='big')
     signature = pow(hash, priPkgKey.d, priPkgKey.n)
 
-    updatedPkgContent = open('./pkgStorage/Content/' + updatedPkgPath, 'rb')
-    metaFile = open('./pkgStorage/pkgInfo.json', 'rb')
-    file = {'pkgContent': updatedPkgContent, 'meta': metaFile}
+    updatedPkg = open(pkgName + '.zip', 'rb')
+    metaFile = open(updatedPkgPath + '/pkgInfo.json', 'rb')
+    file = {'pkg': updatedPkg, 'meta': metaFile}
     data = {'pkgName': pkgName, 'userName': userName,
             'sign': signature}
     response = requests.post(SERVER_IP + "/updatePkg", files=file, data=data)
+    os.remove(pkgName + '.zip')
 
-    print(response.content)
+    # print(response.content)
     r = json.loads(response.content)
     if r['ifSuccess']:
         # update the pkg version after update package successfully
         # metaContent[pkgName] = version + 1
-        metaJson = helper.getPkgJson("./pkgStorage/")
+        metaJson = helper.getPkgJson(updatedPkgPath)
         metaJson['version'] += 1
-        helper.updatePkgJson(metaJson, "./pkgStorage")
+        helper.updatePkgJson(metaJson, updatedPkgPath)
         print("Update Package Succeed!")
     else:
         print(r["message"])
@@ -292,19 +294,25 @@ if message == 'update-pkg':
 """
 Message: download-pkg
 
-Description: update the information of certain package
+Description: download certain package
 
 argv[2]: package name
-argv[3]: owner/collaborator user name
-argv[4]: the path of updated package
+argv[3]: the local path to download pkg
 """
 if message == 'download-pkg':
     pkgName = sys.argv[2]
+    downloadPath = sys.argv[3]
     response = requests.post(SERVER_IP + "/downloadPkg",
                              data={'pkgName': pkgName})
-    with open(pkgName, 'w') as f:
-        f.write(json.loads(response.content)['content'])
-    print('file saved')
+
+    r = response.headers
+    
+    if not r['ifSuccess']:
+        print(r['message'])
+    else:
+        helper.removeDir(downloadPath + "/" + pkgName)
+        helper.uncompressFile(response.content, downloadPath)
+        print('file saved')
 
 """
 Message: replace package key

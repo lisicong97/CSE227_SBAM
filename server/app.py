@@ -1,12 +1,15 @@
 from hashlib import sha512
+from logging import root
 import os
-from flask import Flask, request
+import zipfile
+from flask import Flask, request, send_file ,send_from_directory,make_response
 import json
 import time
 from Crypto.PublicKey import RSA
 import helper
 from User import User
 from Package import Package
+
 
 app = Flask(__name__)
 
@@ -102,7 +105,7 @@ def proveIdentity():
         return json.dumps({'ifProved': True})
     else:
         return json.dumps({'ifProved': False})
-
+    
 
 # input:
 # pkgName "pkg1"
@@ -150,27 +153,20 @@ def registerPkg():
     if pow(int(userSign), userPubKey['e'], userPubKey['n']) == hash:
         pkgName2pkg[pkgName] = Package(
             pkgName, 0, userName, [userName2user[userName]], [pkgPubKey])
-        print(pkgName)
         pkgJson[pkgName] = {"pkgName": pkgName, "version": 0, "ownername": userName, "colUsers": [
             userName2user[userName].username], "colPublicKey": [pkgPubKey]}
         # print(pkgJson)
         pkgPath = ("./storage/" + pkgName)
         os.mkdir(pkgPath)
         os.mkdir(pkgPath + "/Content")
-
+        # print(type(pkgCon))
         helper.updatePkgJson(pkgJson)
 
         #  read the content from start
         pkgContent.seek(0)
         metaInfo.seek(0)
 
-        # write to storage
-        with open(pkgPath + "/Content/" + pkgName, "wb") as output:
-            for line in pkgContent:
-                output.write(line)
-        with open(pkgPath + "/pkgInfo.json", "wb") as output:
-            for line in metaInfo:
-                output.write(line)
+        helper.uncompressFile(pkgContent.read(), './storage')
 
         return json.dumps({'ifSuccess': True})
     return json.dumps({'ifSuccess': False, 'message': 'identity not proved'})
@@ -210,7 +206,7 @@ def addCollaborator():
 @app.route('/updatePkg', methods=['POST'])
 def updatePkg():
     print("received")
-    pkgContent = request.files['pkgContent']
+    pkgContent = request.files['pkg']
     metaInfo = request.files['meta']
     metaJson = json.load(metaInfo)
     metaInfo.seek(0)
@@ -227,16 +223,12 @@ def updatePkg():
     if pkgObj.version != version:
         return json.dumps({'ifSuccess': False, 'message': 'current vesion is not connsistent with the previous version, please download the newest before update'})
 
-    hash = sha512()
-    chunk = 0
-    while chunk != b'':
-        chunk = pkgContent.read(1024)
-        hash.update(chunk)
 
-    chunk = 0
-    while chunk != b'':
-        chunk = metaInfo.read(1024)
-        hash.update(chunk)
+    
+
+    hash = sha512()
+    helper.updateHash(pkgContent, hash)
+    helper.updateHash(metaInfo, hash)
 
     metaInfo.seek(0)
     pkgContent.seek(0)
@@ -248,18 +240,21 @@ def updatePkg():
 
     # calculate the hash based on the package content and meta data
     if pow(int(sign), pkgPubKey['e'], pkgPubKey['n']) == hash:
+        helper.removeDir('./storage/' + pkgName)
+        helper.uncompressFile(pkgContent.read(), './storage')
         pkgObj.version += 1
         pkgJson[pkgName]['version'] += 1
         helper.updatePkgJson(pkgJson)
-        
         pkgPath = ("./storage/" + pkgName)
+        helper.updateJson( pkgJson[pkgName] , pkgPath + "/pkgInfo.json")
+        
 
-        with open(pkgPath + "/Content/" + pkgName, "wb") as output:
-            for line in pkgContent:
-                output.write(line)
-        with open(pkgPath + "/pkgInfo.json", "wb") as output:
-            for line in metaInfo:
-                output.write(line)
+        # with open(pkgPath + "/Content/" + pkgName, "wb") as output:
+        #     for line in pkgContent:
+        #         output.write(line)
+        
+        
+        
         # pkgObj.contents.append(pkgContent)
         return json.dumps({'ifSuccess': True})
     return json.dumps({'ifSuccess': False})
@@ -269,10 +264,33 @@ def updatePkg():
 # output: string
 @app.route('/downloadPkg', methods=['POST'])
 def downloadPkg():
+    
     pkgName = request.form['pkgName']
-    pkgObj = pkgName2pkg[pkgName]
-    # TODO
-    return json.dumps({'content': 'str(pkgObj.contents[-1])'})
+    
+    if pkgName not in pkgJson:
+      response = make_response()
+      response.headers['ifSuccess'] = False
+      response.headers['message'] = "package not registered"
+      # return json.dumps({'ifSuccess': False, 'message': "package not registered"})
+    pkgPath = './storage/' + pkgName 
+    # pkgObj = pkgName2pkg[pkgName]
+    # fileContent = open(pkgPath + '/Content/' + pkgName, 'rb')
+    # meta = open(pkgPath + '/pkgInfo.json', 'rb')
+
+    helper.compressFile(pkgPath, pkgName + '.zip')
+
+    response = make_response(send_file(pkgName + '.zip',
+            mimetype = 'zip',
+            attachment_filename= pkgName + '.zip',
+            as_attachment = True))
+    # response.headers['ifSuccess'] = True
+    response.headers['ifSuccess'] = True
+    os.remove(pkgName+'.zip')
+    return response 
+
+    
+
+    # return json.dumps({'meta': meta, 'f': fileContent})
 
 
 # input: pkgName, oldPkgPublicKey, newPkgPublicKey, sign(owner's user key, encrypt all para)
