@@ -1,11 +1,11 @@
 pragma solidity >=0.4.25;
 
 contract Sbam {
+    address authenticatedServerAddress = address(0x123);
 
     struct User {
-    uint userId;
     string userName;
-    bytes[] publicKey;
+    string publicKey;
     string socialMedia;
     }
 
@@ -13,8 +13,8 @@ contract Sbam {
         string pkgName;
         string version;
         string colName;
-        bytes[] colPublicKey;
-        bytes[] signature; // sign by uploader's pkg private key
+        string colPublicKey;
+        string signature; // sign by uploader's pkg private key
     }
 
     mapping (string => User) userName2user;
@@ -23,14 +23,18 @@ contract Sbam {
     event printToConsole(string message);
 
     // after register to server, register to block chain
-    function registerUser(uint id, string memory userName, bytes[] memory publicKey, 
+    function registerUser(string memory userName, string memory publicKey, 
         string memory socialMedia) public returns(bool) {
+        // if (msg.sender != authenticatedServerAddress) {
+        //     emit printToConsole("Only authticated server address can write data to block chain!");
+        //     return false;
+        // }
         if (keccak256(abi.encodePacked(userName2user[userName].userName)) 
             != keccak256(abi.encodePacked(""))) {
             emit printToConsole("This user name is occupied, please try another one.");
             return false;
         } else {
-            User memory user = User(id, userName, publicKey, socialMedia);
+            User memory user = User(userName, publicKey, socialMedia);
             userName2user[userName] = user;
             return true;
         }
@@ -41,7 +45,11 @@ contract Sbam {
     }
 
     // pkg content sign by private key of pkg
-    function addPkgWithVersion(string memory pkgName, string memory version, string memory ownername, bytes[] memory pubKey, bytes[] memory sign) public returns(bool) {
+    function addPkgWithVersion(string memory pkgName, string memory version, string memory ownername, string memory pubKey, string memory sign) public returns(bool) {
+        // if (msg.sender != authenticatedServerAddress) {
+        //     emit printToConsole("Only authticated server address can write data to block chain!");
+        //     return false;
+        // }
         string memory key = string(abi.encodePacked(pkgName, "_", version));
         if (keccak256(abi.encodePacked(pkgName2pkg[key].pkgName)) 
             != keccak256(abi.encodePacked(""))) {
