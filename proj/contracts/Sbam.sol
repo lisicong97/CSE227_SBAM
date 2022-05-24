@@ -9,14 +9,16 @@ contract Sbam {
     string socialMedia;
     }
 
-    struct Package {
+    struct VersionPackage {
         string pkgName;
-        string owner;
+        string version;
+        string colName;
+        bytes[] colPublicKey;
         bytes[] signature; // sign by uploader's pkg private key
     }
 
     mapping (string => User) userName2user;
-    mapping (string => Package) pkgName2pkg;
+    mapping (string => VersionPackage) pkgName2pkg; // pkgName_version
 
     event printToConsole(string message);
 
@@ -35,28 +37,25 @@ contract Sbam {
     }
 
     function getUser(string memory userName) public view returns(User memory) {
-        return userName2user[userName]; // if value is empty, the return object will have default value ("", 0, balabala)
+        return userName2user[userName]; // if value is empty, the return object will have default value ("", 0, "", 0)
     }
 
     // pkg content sign by private key of pkg
-    function registerPkg(string memory pkgName, string memory ownername, bytes[] memory sign) public returns(bool) {
-        if (keccak256(abi.encodePacked(pkgName2pkg[pkgName].pkgName)) 
+    function addPkgWithVersion(string memory pkgName, string memory version, string memory ownername, bytes[] memory pubKey, bytes[] memory sign) public returns(bool) {
+        string memory key = string(abi.encodePacked(pkgName, "_", version));
+        if (keccak256(abi.encodePacked(pkgName2pkg[key].pkgName)) 
             != keccak256(abi.encodePacked(""))) {
-            emit printToConsole("This pkg name is occupied, please try another one.");
+            emit printToConsole("This package name or version is occupied, please try another one.");
             return false;
         } else {
-            Package memory pkg = Package(pkgName, ownername, sign);
-            pkgName2pkg[pkgName] = pkg;
+            VersionPackage memory pkg = VersionPackage(pkgName, version, ownername, pubKey, sign);
+            pkgName2pkg[key] = pkg;
             return true;
         }
     }
 
-    function updatePkg(string memory pkgName, bytes[] memory sign) public returns(bool) {
-        pkgName2pkg[pkgName].signature = sign;
-        return true;
-    }
-
-    function getPkg(string memory pkgName)  public view returns(Package memory) {
-        return pkgName2pkg[pkgName];
+    function getPkg(string memory pkgName, string memory version)  public view returns(VersionPackage memory) {
+        string memory key = string(abi.encodePacked(pkgName, "_", version));
+        return pkgName2pkg[key];
     }
 }
