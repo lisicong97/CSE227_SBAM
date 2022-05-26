@@ -13,7 +13,7 @@ with open(compiled_contract_path) as file:
 
 contract = web3.eth.contract(address=deployed_contract_address, abi=contract_abi)
 
-l = [0x12, 0x11]
+
 message = contract.functions.registerUser("Stephen", "123", "sumo").call()
 print(message)
 message = contract.functions.getUser("Stephen").call()
