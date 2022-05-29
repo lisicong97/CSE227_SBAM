@@ -11,7 +11,15 @@ cd proj
 truffle migrate
 ```
 
+Or you can just enter the develop version
 
+change the  [Sbam.sol](./proj/contracts/Sbam.sol) authenticatedServerAddress to your server ethereum address, then
+
+```
+cd proj
+truffle develop
+migrate
+```
 
 To start the server, using command below:
 
@@ -55,3 +63,8 @@ Update 5.12
 Update 5.17
 
 * finished ethereum coding, smart constract is in Sbam.sol
+
+Update 5.23
+
+* finished interaction with smart constract
+

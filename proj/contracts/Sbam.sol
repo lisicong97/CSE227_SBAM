@@ -17,8 +17,14 @@ contract Sbam {
         string signature; // sign by uploader's pkg private key
     }
 
+    struct PkgCollaborator {
+        string ownerName;
+        string[10] collaboratorName;
+    }
+
     mapping (string => User) userName2user;
-    mapping (string => VersionPackage) pkgName2pkg; // pkgName_version
+    mapping (string => VersionPackage) pkgName2pkg; // key is pkgName_version
+    mapping (string => PkgCollaborator) pkgName2Collaborators;
 
     event printToConsole(string message);
 
@@ -65,5 +71,44 @@ contract Sbam {
     function getPkg(string memory pkgName, string memory version)  public view returns(VersionPackage memory) {
         string memory key = string(abi.encodePacked(pkgName, "_", version));
         return pkgName2pkg[key];
+    }
+
+    function addPkgOwner(string memory ownerName, string memory pkgName) public returns(bool) {
+        if (keccak256(abi.encodePacked(pkgName2Collaborators[pkgName].ownerName)) 
+            != keccak256(abi.encodePacked(""))) {
+            emit printToConsole("This package already exists, can't renew it.");
+            return false;
+        } else {
+            string[10] memory col = ["", "", "", "", "", "", "", "", "", ""];
+            PkgCollaborator memory pkgCol = PkgCollaborator(ownerName, col);
+            pkgName2Collaborators[pkgName] = pkgCol;
+            return true;
+        }
+    }
+
+    function addPkgCollaborator(string memory colName, string memory pkgName) public returns(bool) {
+        if (keccak256(abi.encodePacked(pkgName2Collaborators[pkgName].ownerName)) 
+            == keccak256(abi.encodePacked(""))) {
+            emit printToConsole("This package doesn't exist, check the package name!");
+            return false;
+        } else {
+            bool find = false;
+            for (uint i = 0; i < 10; i++) {
+                if (keccak256(abi.encodePacked(pkgName2Collaborators[pkgName].collaboratorName[i])) == keccak256(abi.encodePacked(""))) {
+                    pkgName2Collaborators[pkgName].collaboratorName[i] = colName;
+                    find = true;
+                    break;
+                }
+            }
+            if (!find) {
+                emit printToConsole("This capacity of collaborators is reach the limitation!");
+                return false;
+            }
+            return true;
+        }
+    }
+
+    function getPkgInfo(string memory pkgName)  public view returns(PkgCollaborator memory) {
+        return pkgName2Collaborators[pkgName];
     }
 }

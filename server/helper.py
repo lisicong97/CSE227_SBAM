@@ -1,6 +1,6 @@
 import json
 from User import User
-from Package import  Package
+from Package import Package
 import zipfile
 import os
 from io import BytesIO
@@ -35,109 +35,151 @@ def web3AddPkgwithVersion(deployed_contract_address, pkgName, version, ownername
   message = contract.functions.addPkgWithVersion(pkgName, version, ownername, pubKey, sign).transact()
   return message
 
+import json
+from web3 import Web3, HTTPProvider
+
+deployed_contract_address = '0x4f428DeB3841cE0bE976abb782Bd8fFD774867FB'
+blockchain_address = 'http://127.0.0.1:9545'
+compiled_contract_path = '../proj/build/contracts/Sbam.json'
+server_account_key = 'c3aefd6125906fe0afe08a6e906b22dad844d13e0d94784934aa3d923766d6d2'
+
+web3 = Web3(HTTPProvider(blockchain_address))
+with open(compiled_contract_path) as file:
+    contract_json = json.load(file)
+    contract_abi = contract_json['abi']
+
+contract = web3.eth.contract(address=deployed_contract_address, abi=contract_abi)
+
+
+def writeUser(userName, pubKey, socialMedia):
+    return contract.functions.registerUser(userName, pubKey, socialMedia).call({'from': web3.eth.account.from_key(server_account_key).address})
+
+
+def readUser(userName):
+    return contract.functions.getUser(userName).call()
+
+
+def writePkg(pkgName, version, ownername, pubKey, sign):
+    return contract.functions.addPkgWithVersion(pkgName, version, ownername, pubKey, sign).call()
+
+
+def readPkg(name, version):
+    return contract.functions.getPkg(name, version).call()
 
 def updateHash(filePath, hash):
-  if type(filePath) is str:
-    with open(filePath, 'rb') as file:
-          chunk = 0
-          while chunk != b'':
-              chunk = file.read(1024)
-              hash.update(chunk)
-    return hash
-  else:
-    chunk = 0
-    while chunk != b'':
-      chunk = filePath.read(1024)
-      hash.update(chunk)
-    return hash
+    if type(filePath) is str:
+        with open(filePath, 'rb') as file:
+            chunk = 0
+            while chunk != b'':
+                chunk = file.read(1024)
+                hash.update(chunk)
+        return hash
+    else:
+        chunk = 0
+        while chunk != b'':
+            chunk = filePath.read(1024)
+            hash.update(chunk)
+        return hash
 
 
 def getUserJson():
-  users = {}
-  try:
-    with open("./User.json", "r") as userFile:
-      users =  json.load(userFile)
-  except:
-    pass
-  return users
+    users = {}
+    try:
+        with open("./User.json", "r") as userFile:
+            users = json.load(userFile)
+    except:
+        pass
+    return users
+
 
 def convertJson2User():
-  users = {}
-  try:
-    with open("./User.json", "r") as userFile:
-      j =  json.load(userFile)
-      for i in j:
-        newUser = User(j[i]['userId'], j[i]['username'], j[i]['publicKey'], j[i]['socialMedia'])
-        users[i] = newUser
-  except:
-    pass
-  return users
+    users = {}
+    try:
+        with open("./User.json", "r") as userFile:
+            j = json.load(userFile)
+            for i in j:
+                newUser = User(j[i]['userId'], j[i]['username'], j[i]['publicKey'], j[i]['socialMedia'])
+                users[i] = newUser
+    except:
+        pass
+    return users
 
 
 def getPkgJson():
-  pkgs = {}
-  try:
-    with open("./Package.json", "r") as pkgFile:
-      pkgs =  json.load(pkgFile)
-  except:
-    pass
-  return pkgs
+    pkgs = {}
+    try:
+        with open("./Package.json", "r") as pkgFile:
+            pkgs = json.load(pkgFile)
+    except:
+        pass
+    return pkgs
 
 
 def convertJson2Pkg():
-  pkgs = {}
-  try:
-    with open("./Package.json", "r") as pkgFile:
-      j =  json.load(pkgFile)
-      for i in j:
-        newUser = User(j[i]['pkgName'], j[i]['version'], j[i]['ownername'], j[i]['colUsers'], j[i]['colPublicKey'])
-        pkgs[i] = newUser
-  except:
-    pass
-  return pkgs
+    pkgs = {}
+    try:
+        with open("./Package.json", "r") as pkgFile:
+            j = json.load(pkgFile)
+            for i in j:
+                newUser = User(j[i]['pkgName'], j[i]['version'], j[i]['ownername'], j[i]['colUsers'],
+                               j[i]['colPublicKey'])
+                pkgs[i] = newUser
+    except:
+        pass
+    return pkgs
+
 
 def updateUserJson(userJson):
-  with open("User.json", "w") as jsonFile:
-              json.dump(userJson, jsonFile, sort_keys=True, indent=4,
-                        ensure_ascii=False)
+    with open("User.json", "w") as jsonFile:
+        json.dump(userJson, jsonFile, sort_keys=True, indent=4,
+                  ensure_ascii=False)
+
 
 def updatePkgJson(pkgJson):
-  with open("Package.json", "w") as jsonFile:
-          json.dump(pkgJson, jsonFile, sort_keys=True, indent=4,
-                    ensure_ascii=False)
+    with open("Package.json", "w") as jsonFile:
+        json.dump(pkgJson, jsonFile, sort_keys=True, indent=4,
+                  ensure_ascii=False)
+
 
 def updateJson(pkgJson, filePath):
-  with open(filePath, "w") as jsonFile:
-          json.dump(pkgJson, jsonFile, sort_keys=True, indent=4,
-                    ensure_ascii=False)
+    with open(filePath, "w") as jsonFile:
+        json.dump(pkgJson, jsonFile, sort_keys=True, indent=4,
+                  ensure_ascii=False)
+
 
 def writeFile(srcFile, dstFile, mode):
-  with open(dstFile, mode) as dst:
-            for line in srcFile:
-                dst.write(line)
+    with open(dstFile, mode) as dst:
+        for line in srcFile:
+            dst.write(line)
 
 
-def uncompressFile(srcZip,outputPath):
-  filebytes = BytesIO(srcZip)
-  myzipfile = zipfile.ZipFile(filebytes)
-  for name in myzipfile.namelist():
+def uncompressFile(srcZip, outputPath):
+    filebytes = BytesIO(srcZip)
+    myzipfile = zipfile.ZipFile(filebytes)
+    for name in myzipfile.namelist():
+        inputFile = myzipfile.open(name, 'r')
+        # print(name)
 
-    inputFile = myzipfile.open(name, 'r')
-    # print(name)
+        # relativePath = name.split('storage/')[1]
+        os.makedirs(os.path.dirname(outputPath + '/' + name), exist_ok=True)
+        writeFile(inputFile, outputPath + '/' + name, 'wb+')
+    myzipfile.close()
 
-    # relativePath = name.split('storage/')[1]
-    os.makedirs(os.path.dirname(outputPath + '/' + name), exist_ok=True)
-    writeFile( inputFile, outputPath + '/' + name, 'wb+')
-  myzipfile.close()
 
 def compressFile(folderPath, zipFileName):
-  zipfolder = zipfile.ZipFile(zipFileName,'w', compression = zipfile.ZIP_STORED) # Compression type 
-  for path, dirs, files in os.walk(folderPath):
-      for file in files:
-          if not os.path.isdir(path):
-            os.makedirs(path)
-          zipfolder.write(path + '/' + file, os.path.relpath(os.path.join(path, file), os.path.join(folderPath, '..')) )
-  zipfolder.close()
+    zipfolder = zipfile.ZipFile(zipFileName, 'w', compression=zipfile.ZIP_STORED)  # Compression type
+    for path, dirs, files in os.walk(folderPath):
+        for file in files:
+            if not os.path.isdir(path):
+                os.makedirs(path)
+            zipfolder.write(path + '/' + file,
+                            os.path.relpath(os.path.join(path, file), os.path.join(folderPath, '..')))
+    zipfolder.close()
+
 
 def removeDir(path):
-  shutil.rmtree(path)
+    shutil.rmtree(path)
+
+if __name__ == '__main__':
+    print(writeUser("name", "123", "sumomo"))
+    print(readUser("name"))
