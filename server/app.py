@@ -185,11 +185,15 @@ def addCollaborator():
     colName = request.form['colName']
     newPkgPubKey = json.loads(request.form['colPkgPublicKey'])
     sign = request.form['sign']
+    if pkgName not in pkgName2pkg:
+      return json.dumps({'ifSuccess': False, 'message': 'package does not exist'})
+    if colName not in userName2user:
+      return json.dumps({'ifSuccess': False, 'message': 'collaborator not registered'})
 
-    pkgObj = pkgName2pkg['pkgName']
+
+
+    pkgObj = pkgName2pkg[pkgName]
     newUser = userName2user[colName]
-    if pkgObj is None or newUser is None:
-        return json.dumps({'ifSuccess': False})
     oriPkgKey = pkgObj.colPublicKey[0]
     if pow(int(sign), oriPkgKey['e'], oriPkgKey['n']) == \
             int.from_bytes(sha512(str.encode(pkgName+colName)).digest(), byteorder='big'):
@@ -247,12 +251,6 @@ def updatePkg():
         helper.updatePkgJson(pkgJson)
         pkgPath = ("./storage/" + pkgName)
         helper.updateJson( pkgJson[pkgName] , pkgPath + "/pkgInfo.json")
-        
-
-        # with open(pkgPath + "/Content/" + pkgName, "wb") as output:
-        #     for line in pkgContent:
-        #         output.write(line)
-        
         
         
         # pkgObj.contents.append(pkgContent)

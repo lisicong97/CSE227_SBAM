@@ -5,6 +5,36 @@ import zipfile
 import os
 from io import BytesIO
 import shutil
+from web3 import Web3, HTTPProvider
+
+def web3RegisterUser(deployed_contract_address, userName, pubKey, socialMedia):
+
+  blockchain_address = 'http://127.0.0.1:9545'
+  web3 = Web3(HTTPProvider(blockchain_address))
+  web3.eth.defaultAccount = web3.eth.accounts[0]
+  compiled_contract_path = './../proj/build/contracts/Sbam.json'
+
+  with open(compiled_contract_path) as file:
+      contract_json = json.load(file)
+      contract_abi = contract_json['abi']
+
+  contract = web3.eth.contract(address=deployed_contract_address, abi=contract_abi)
+  message = contract.functions.registerUser(userName, pubKey, socialMedia).transact()
+  return message
+
+def web3AddPkgwithVersion(deployed_contract_address, pkgName, version, ownername, pubKey, sign):
+  blockchain_address = 'http://127.0.0.1:9545'
+  web3 = Web3(HTTPProvider(blockchain_address))
+  web3.eth.defaultAccount = web3.eth.accounts[0]
+  compiled_contract_path = './../proj/build/contracts/Sbam.json'
+
+  with open(compiled_contract_path) as file:
+      contract_json = json.load(file)
+      contract_abi = contract_json['abi']
+  contract = web3.eth.contract(address=deployed_contract_address, abi=contract_abi)
+  message = contract.functions.addPkgWithVersion(pkgName, version, ownername, pubKey, sign).transact()
+  return message
+
 
 def updateHash(filePath, hash):
   if type(filePath) is str:
