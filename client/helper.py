@@ -5,31 +5,28 @@ import os
 from io import BytesIO
 from web3 import Web3, HTTPProvider
 
-
-def getweb3User(deployed_contract_address, userName):
-  blockchain_address = 'http://127.0.0.1:9545'
-  web3 = Web3(HTTPProvider(blockchain_address))
-  web3.eth.defaultAccount = web3.eth.accounts[0]
-  compiled_contract_path = './../proj/build/contracts/Sbam.json'
-
-  with open(compiled_contract_path) as file:
+blockchain_address = 'http://127.0.0.1:9545'
+web3 = Web3(HTTPProvider(blockchain_address))
+web3.eth.defaultAccount = web3.eth.accounts[0]
+compiled_contract_path = './../proj/build/contracts/Sbam.json'
+with open(compiled_contract_path) as file:
       contract_json = json.load(file)
       contract_abi = contract_json['abi']
+
+def getweb3User(deployed_contract_address, userName):
+  
 
   contract = web3.eth.contract(address=deployed_contract_address, abi=contract_abi)
   message = contract.functions.getUser(userName).call()
   return message
   
+def getweb3PkgCol(deployed_contract_address, pkgName):
+  contract = web3.eth.contract(address=deployed_contract_address, abi=contract_abi)
+  message = contract.functions.getPkgInfo(pkgName).call()
+  return message
+
 
 def getweb3Pkg(deployed_contract_address, pkgName, version):
-  blockchain_address = 'http://127.0.0.1:9545'
-  web3 = Web3(HTTPProvider(blockchain_address))
-  web3.eth.defaultAccount = web3.eth.accounts[0]
-  compiled_contract_path = './../proj/build/contracts/Sbam.json'
-
-  with open(compiled_contract_path) as file:
-      contract_json = json.load(file)
-      contract_abi = contract_json['abi']
 
   contract = web3.eth.contract(address=deployed_contract_address, abi=contract_abi)
   message = contract.functions.getPkg(pkgName, version).call()
@@ -38,7 +35,7 @@ def getweb3Pkg(deployed_contract_address, pkgName, version):
 
 def verifyPkg(deployed_contract_address, pkgName, version):
   pkgInfo = getweb3Pkg(deployed_contract_address, pkgName, version)
-  
+
 
 
 def updatePkgJson(pkgJson, pkgPath):

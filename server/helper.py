@@ -1,4 +1,6 @@
 import json
+
+import pkg_resources
 from User import User
 from Package import Package
 import zipfile
@@ -6,65 +8,35 @@ import os
 from io import BytesIO
 import shutil
 from web3 import Web3, HTTPProvider
+from Crypto.PublicKey import RSA
+
+blockchain_address = 'http://127.0.0.1:9545'
+web3 = Web3(HTTPProvider(blockchain_address))
+web3.eth.defaultAccount = web3.eth.accounts[0]
+compiled_contract_path = './../proj/build/contracts/Sbam.json'
+with open(compiled_contract_path) as file:
+      contract_json = json.load(file)
+      contract_abi = contract_json['abi']
 
 def web3RegisterUser(deployed_contract_address, userName, pubKey, socialMedia):
-
-  blockchain_address = 'http://127.0.0.1:9545'
-  web3 = Web3(HTTPProvider(blockchain_address))
-  web3.eth.defaultAccount = web3.eth.accounts[0]
-  compiled_contract_path = './../proj/build/contracts/Sbam.json'
-
-  with open(compiled_contract_path) as file:
-      contract_json = json.load(file)
-      contract_abi = contract_json['abi']
-
   contract = web3.eth.contract(address=deployed_contract_address, abi=contract_abi)
-  message = contract.functions.registerUser(userName, pubKey, socialMedia).transact()
-  return message
+  hash = contract.functions.registerUser(userName, pubKey, socialMedia).transact()
+  receipt = web3.eth.wait_for_transaction_receipt(hash)
+  log_to_process = receipt['logs'][0]
+  processed_log =  contract.events.MyEvent().processLog(log_to_process)
+  print(processed_log)
+  return receipt
 
 def web3AddPkgwithVersion(deployed_contract_address, pkgName, version, ownername, pubKey, sign):
-  blockchain_address = 'http://127.0.0.1:9545'
-  web3 = Web3(HTTPProvider(blockchain_address))
-  web3.eth.defaultAccount = web3.eth.accounts[0]
-  compiled_contract_path = './../proj/build/contracts/Sbam.json'
-
-  with open(compiled_contract_path) as file:
-      contract_json = json.load(file)
-      contract_abi = contract_json['abi']
   contract = web3.eth.contract(address=deployed_contract_address, abi=contract_abi)
   message = contract.functions.addPkgWithVersion(pkgName, version, ownername, pubKey, sign).transact()
   return message
 
-import json
-from web3 import Web3, HTTPProvider
-
-deployed_contract_address = '0x4f428DeB3841cE0bE976abb782Bd8fFD774867FB'
-blockchain_address = 'http://127.0.0.1:9545'
-compiled_contract_path = '../proj/build/contracts/Sbam.json'
-server_account_key = 'c3aefd6125906fe0afe08a6e906b22dad844d13e0d94784934aa3d923766d6d2'
-
-web3 = Web3(HTTPProvider(blockchain_address))
-with open(compiled_contract_path) as file:
-    contract_json = json.load(file)
-    contract_abi = contract_json['abi']
-
-contract = web3.eth.contract(address=deployed_contract_address, abi=contract_abi)
-
-
-def writeUser(userName, pubKey, socialMedia):
-    return contract.functions.registerUser(userName, pubKey, socialMedia).call({'from': web3.eth.account.from_key(server_account_key).address})
-
-
-def readUser(userName):
-    return contract.functions.getUser(userName).call()
-
-
-def writePkg(pkgName, version, ownername, pubKey, sign):
-    return contract.functions.addPkgWithVersion(pkgName, version, ownername, pubKey, sign).call()
-
-
-def readPkg(name, version):
-    return contract.functions.getPkg(name, version).call()
+def web3AddOwner(deployed_contract_address, ownerName, pkgName):
+  contract = web3.eth.contract(address=deployed_contract_address, abi=contract_abi)
+  message = contract.functions.addPkgOwner(ownerName, pkgName).transact()
+  return message
+  
 
 def updateHash(filePath, hash):
     if type(filePath) is str:
@@ -104,6 +76,10 @@ def convertJson2User():
         pass
     return users
 
+def exportPubKeyStr(n, e):
+  pk = RSA.construct((n,e))
+  pkstring = pk.exportKey("PEM")
+  return pkstring
 
 def getPkgJson():
     pkgs = {}

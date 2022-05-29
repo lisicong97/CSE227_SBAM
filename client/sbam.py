@@ -11,7 +11,8 @@ import os
 
 from io import BytesIO
 
-SERVER_IP = "http://127.0.0.1:5000/"
+SERVER_IP = "http://127.0.0.1:5000"
+deployed_contract_address = '0x1Bd4B1Aa9c5A463b7f7bd9662118c1070386F030'
 
 # sbam message_name option1 option2...
 if len(sys.argv) == 1:
@@ -70,6 +71,7 @@ if message == 'new-user':
     userInfo = {'userName': userName, 'publicKey': json.dumps(
         {'e': keyPair.e, 'n': keyPair.n})}
     response1 = requests.post(SERVER_IP + "/registerUser", data=userInfo)
+    print(response1)
     r1 = response1.json()
     # deal with the message from the server
     if r1['ifSuccess'] == False:
@@ -126,12 +128,11 @@ if message == 'new-pkg':
     userName = sys.argv[2]
     pkgName = sys.argv[3]
     pkgPath = sys.argv[4]
-    pkgContent = open(pkgPath + "/Content/pkgcontent", 'rb')
+    # pkgContent = open(pkgPath + "/Content/pkgcontent", 'rb')
     pkgKeyPath = "./UserKeys/" + userName + "/pkgKeys/" + pkgName
     userKeyPath = "./UserKeys/" + userName
     # generate the pkg key pair
     pkgKeyPair = RSA.generate(bits=1024)
-
 
     # save the public key
     pkgPubKey = pkgKeyPair.publickey().exportKey()
@@ -146,8 +147,6 @@ if message == 'new-pkg':
     pkgPriFile.write(pkgPriKey)
     pkgPriFile.close()
 
-    
-
     # get the user private key
     f = open(userKeyPath + '/privateKey.pem', 'rb')
     priKey = RSA.importKey(f.read())
@@ -160,7 +159,7 @@ if message == 'new-pkg':
         json.dump(meta, out_file, sort_keys=True, indent=4,
                   ensure_ascii=False)
 
-    #compress the whole package directory
+    # compress the whole package directory
     helper.compressFile(pkgPath, pkgName + '.zip')
 
     # create hash of file stream: https://howtodoinjava.com/modules/python-find-file-hash/
@@ -256,8 +255,7 @@ if message == 'update-pkg':
     key = open(pkgKeyPath + '/pkgPriKey.pem', 'r')
     priPkgKey = RSA.importKey(key.read())
 
-
-    #compress the whole package directory
+    # compress the whole package directory
     helper.compressFile(updatedPkgPath, pkgName + '.zip')
 
     # sign the file content
@@ -306,12 +304,18 @@ if message == 'download-pkg':
                              data={'pkgName': pkgName})
 
     r = response.headers
-    
+
+
     if not r['ifSuccess']:
+        
         print(r['message'])
     else:
         helper.removeDir(downloadPath + "/" + pkgName)
         helper.uncompressFile(response.content, downloadPath)
+        col = helper.getweb3PkgCol(deployed_contract_address, pkgName)
+        pkgInfo = helper.getweb3Pkg(deployed_contract_address, pkgName, '0')
+        print(col)
+        print(pkgInfo)
         print('file saved')
 
 """

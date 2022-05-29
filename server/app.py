@@ -2,7 +2,7 @@ from hashlib import sha512
 from logging import root
 import os
 import zipfile
-from flask import Flask, request, send_file ,send_from_directory,make_response
+from flask import Flask, request, send_file, send_from_directory, make_response
 import json
 import time
 from Crypto.PublicKey import RSA
@@ -10,7 +10,7 @@ import helper
 from User import User
 from Package import Package
 
-
+deployed_contract_address = '0x1Bd4B1Aa9c5A463b7f7bd9662118c1070386F030'
 app = Flask(__name__)
 
 
@@ -29,6 +29,7 @@ currentUserId = len(userName2publicKey)
 
 @app.route('/')
 def hello_world():
+    print("1")
     return 'Welcome to SBAM'
 
 
@@ -37,7 +38,7 @@ def hello_world():
 # publicKey: {'e':123, 'n':123}
 # output:
 # {ifSuccess: 'True', msg: '1321312'}
-@app.route('/registerUser', methods=['POST'])
+@app.route('/registerUser', methods=['POST', 'GET'])
 def registerUser():
     userName = request.form['userName']
     publicKey = json.loads(request.form['publicKey'])
@@ -69,6 +70,13 @@ def confirmUser():
     hash = int.from_bytes(sha512(msg).digest(), byteorder='big')
     hashFromSignature = pow(int(signedMsg), publicKey['e'], publicKey['n'])
     if hash == hashFromSignature:
+        try:
+          pkstring = helper.exportPubKeyStr(publicKey['n'],publicKey['e'])
+          message = helper.web3RegisterUser(deployed_contract_address,
+                                  userName, pkstring, socialMedia)
+        except:
+          return json.dumps({'ifSuccess': False, 'message': 'register failed. Unable to register on blockchain'})
+
         global currentUserId
         currentUserId += 1
         userName2user[userName] = User(
@@ -77,8 +85,8 @@ def confirmUser():
         usersJson[userName] = {"userId": currentUserId, "username": userName,
                                "publicKey": publicKey, "socialMedia": socialMedia}
 
-        helper.updateUserJson(usersJson)
-
+        # helper.updateUserJson(usersJson)
+     
         return json.dumps({'ifSuccess': True, 'userId': currentUserId})
     else:
         return json.dumps({'ifSuccess': False, 'message': 'hash inconsistent'})
@@ -105,7 +113,7 @@ def proveIdentity():
         return json.dumps({'ifProved': True})
     else:
         return json.dumps({'ifProved': False})
-    
+
 
 # input:
 # pkgName "pkg1"
@@ -151,6 +159,14 @@ def registerPkg():
     hash = int.from_bytes(hash.digest(), byteorder='big')
     # print(pkgContent)
     if pow(int(userSign), userPubKey['e'], userPubKey['n']) == hash:
+
+        try:
+          pkstring = helper.exportPubKeyStr(pkgPubKey['n'], pkgPubKey['e'])
+          helper.web3AddOwner(deployed_contract_address, userName, pkgName)
+          helper.web3AddPkgwithVersion(deployed_contract_address, pkgName, '0', userName, pkstring, userSign)
+        except:
+          return json.dumps({'ifSuccess': False, 'message': 'register failed. Unable to register on blockchain'})
+
         pkgName2pkg[pkgName] = Package(
             pkgName, 0, userName, [userName2user[userName]], [pkgPubKey])
         pkgJson[pkgName] = {"pkgName": pkgName, "version": 0, "ownername": userName, "colUsers": [
@@ -159,7 +175,7 @@ def registerPkg():
         pkgPath = ("./storage/" + pkgName)
         os.mkdir(pkgPath)
         os.mkdir(pkgPath + "/Content")
-        # print(type(pkgCon))
+
         helper.updatePkgJson(pkgJson)
 
         #  read the content from start
@@ -167,6 +183,9 @@ def registerPkg():
         metaInfo.seek(0)
 
         helper.uncompressFile(pkgContent.read(), './storage')
+
+
+        
 
         return json.dumps({'ifSuccess': True})
     return json.dumps({'ifSuccess': False, 'message': 'identity not proved'})
@@ -186,11 +205,9 @@ def addCollaborator():
     newPkgPubKey = json.loads(request.form['colPkgPublicKey'])
     sign = request.form['sign']
     if pkgName not in pkgName2pkg:
-      return json.dumps({'ifSuccess': False, 'message': 'package does not exist'})
+        return json.dumps({'ifSuccess': False, 'message': 'package does not exist'})
     if colName not in userName2user:
-      return json.dumps({'ifSuccess': False, 'message': 'collaborator not registered'})
-
-
+        return json.dumps({'ifSuccess': False, 'message': 'collaborator not registered'})
 
     pkgObj = pkgName2pkg[pkgName]
     newUser = userName2user[colName]
@@ -227,9 +244,6 @@ def updatePkg():
     if pkgObj.version != version:
         return json.dumps({'ifSuccess': False, 'message': 'current vesion is not connsistent with the previous version, please download the newest before update'})
 
-
-    
-
     hash = sha512()
     helper.updateHash(pkgContent, hash)
     helper.updateHash(metaInfo, hash)
@@ -250,9 +264,8 @@ def updatePkg():
         pkgJson[pkgName]['version'] += 1
         helper.updatePkgJson(pkgJson)
         pkgPath = ("./storage/" + pkgName)
-        helper.updateJson( pkgJson[pkgName] , pkgPath + "/pkgInfo.json")
-        
-        
+        helper.updateJson(pkgJson[pkgName], pkgPath + "/pkgInfo.json")
+
         # pkgObj.contents.append(pkgContent)
         return json.dumps({'ifSuccess': True})
     return json.dumps({'ifSuccess': False})
@@ -262,15 +275,15 @@ def updatePkg():
 # output: string
 @app.route('/downloadPkg', methods=['POST'])
 def downloadPkg():
-    
+
     pkgName = request.form['pkgName']
-    
+
     if pkgName not in pkgJson:
-      response = make_response()
-      response.headers['ifSuccess'] = False
-      response.headers['message'] = "package not registered"
-      # return json.dumps({'ifSuccess': False, 'message': "package not registered"})
-    pkgPath = './storage/' + pkgName 
+        response = make_response()
+        response.headers['ifSuccess'] = False
+        response.headers['message'] = "package not registered"
+        # return json.dumps({'ifSuccess': False, 'message': "package not registered"})
+    pkgPath = './storage/' + pkgName
     # pkgObj = pkgName2pkg[pkgName]
     # fileContent = open(pkgPath + '/Content/' + pkgName, 'rb')
     # meta = open(pkgPath + '/pkgInfo.json', 'rb')
@@ -278,15 +291,13 @@ def downloadPkg():
     helper.compressFile(pkgPath, pkgName + '.zip')
 
     response = make_response(send_file(pkgName + '.zip',
-            mimetype = 'zip',
-            attachment_filename= pkgName + '.zip',
-            as_attachment = True))
+                                       mimetype='zip',
+                                       attachment_filename=pkgName + '.zip',
+                                       as_attachment=True))
     # response.headers['ifSuccess'] = True
     response.headers['ifSuccess'] = True
     os.remove(pkgName+'.zip')
-    return response 
-
-    
+    return response
 
     # return json.dumps({'meta': meta, 'f': fileContent})
 
