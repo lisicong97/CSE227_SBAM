@@ -63,7 +63,7 @@ contract Sbam {
     function addPkgWithVersion(
         string memory pkgName,
         string memory version,
-        string memory ownername,
+        string memory updater,
         string memory sign
     ) public returns (bool) {
         // if (msg.sender != authenticatedServerAddress) {
@@ -84,7 +84,7 @@ contract Sbam {
             VersionPackage memory pkg = VersionPackage(
                 pkgName,
                 version,
-                ownername,
+                updater,
                 sign
             );
             pkgName2pkg[key] = pkg;
@@ -121,8 +121,8 @@ contract Sbam {
                 emit printToConsole("This user does not exist!");
                 return false;
             }
-            string[10] memory col = ["", "", "", "", "", "", "", "", "", ""];
-            string[10] memory key = ["", "", "", "", "", "", "", "", "", ""];
+            string[10] memory col = [ownerName, "", "", "", "", "", "", "", "", ""];
+            string[10] memory key = [pkgPubKey, "", "", "", "", "", "", "", "", ""];
             PkgCollaborator memory pkgCol = PkgCollaborator(ownerName, pkgPubKey, col, key);
             pkgName2Collaborators[pkgName] = pkgCol;
             return true;
@@ -144,7 +144,7 @@ contract Sbam {
             return false;
         } else {
             bool find = false;
-            for (uint256 i = 0; i < 10; i++) {
+            for (uint256 i = 1; i < 10; i++) {
                 if (
                     keccak256(
                         abi.encodePacked(

@@ -12,7 +12,7 @@ import os
 from io import BytesIO
 
 SERVER_IP = "http://127.0.0.1:5000"
-deployed_contract_address = '0x1Bd4B1Aa9c5A463b7f7bd9662118c1070386F030'
+deployed_contract_address = '0x2E354F79F0e8D78afa0d5C086c7f203401C151ea'
 
 # sbam message_name option1 option2...
 if len(sys.argv) == 1:
@@ -148,17 +148,19 @@ if message == 'new-pkg':
     pkgPriFile.close()
 
     # get the user private key
+
+    
+    # ------  not used currently ------ #
     f = open(userKeyPath + '/privateKey.pem', 'rb')
     priKey = RSA.importKey(f.read())
+    # ------  not used currently ------ #
+
 
     # put the pkg info into json file
-    meta = {"version": 0, 'pkgName': pkgName, 'userName': userName,
-            'collaborators': [], "pkgPubKey": {"e": pkgKeyPair.e, 'n': pkgKeyPair.n}}
+    meta = {"pkgName": pkgName, "version": 0, "updater": userName, "colUsers": [
+            userName], "colPublicKey": [{"e": pkgKeyPair.e, 'n': pkgKeyPair.n}]}
     helper.updatePkgJson(meta, pkgPath)
-    with open(pkgPath + '/pkgInfo.json', 'w') as out_file:
-        json.dump(meta, out_file, sort_keys=True, indent=4,
-                  ensure_ascii=False)
-
+ 
     # compress the whole package directory
     helper.compressFile(pkgPath, pkgName + '.zip')
 
@@ -169,20 +171,22 @@ if message == 'new-pkg':
 
     # sign the file content
     hash = int.from_bytes(hash.digest(), byteorder='big')
-    signature = pow(hash, priKey.d, priKey.n)
+    signature = pow(hash, pkgKeyPair.d , pkgKeyPair.n)
     # print(hash)
 
     pkgInfo = {'userName': userName, 'pkgName': pkgName,
                'userSign': signature, 'pkgPublicKey': json.dumps({'e': pkgKeyPair.e, 'n': pkgKeyPair.n})}
 
     response = requests.post(SERVER_IP + "/registerPkg", data=pkgInfo, files={
-                             "f": open(pkgName + '.zip', 'rb'), 'meta': open(pkgPath + '/pkgInfo.json', 'rb')})
-    os.remove(pkgName + '.zip')
+                             "pkgzip": open(pkgName + '.zip', 'rb'), 'meta': open(pkgPath + '/pkgInfo.json', 'rb')})
+    # os.remove(pkgName + '.zip')
 
     r = response.json()
+    print(pkgPath + '/pkgInfo.json')
+    print(open(pkgPath + '/pkgInfo.json', 'rb').read())
     if r['ifSuccess']:
-        # Write to the package meta file
-        metaContent[pkgName] = 0
+        # # Write to the package meta file
+        # metaContent[pkgName] = 0
         print("Package register Succeed!")
     else:
         print(r['message'])
@@ -255,6 +259,18 @@ if message == 'update-pkg':
     key = open(pkgKeyPath + '/pkgPriKey.pem', 'r')
     priPkgKey = RSA.importKey(key.read())
 
+    
+    #update the meta info file
+    pkgJson = helper.getPkgJson(updatedPkgPath)
+    pkgJson['version'] += 1
+    pkgJson['updater'] = userName
+    helper.updatePkgJson(pkgJson, updatedPkgPath)
+    
+
+    # helper.updatePkgJson(pkgJson,updatedPkgPath)
+
+
+
     # compress the whole package directory
     helper.compressFile(updatedPkgPath, pkgName + '.zip')
 
@@ -281,9 +297,9 @@ if message == 'update-pkg':
     if r['ifSuccess']:
         # update the pkg version after update package successfully
         # metaContent[pkgName] = version + 1
-        metaJson = helper.getPkgJson(updatedPkgPath)
-        metaJson['version'] += 1
-        helper.updatePkgJson(metaJson, updatedPkgPath)
+        # metaJson = helper.getPkgJson(updatedPkgPath)
+        # metaJson['version'] += 1
+        # helper.updatePkgJson(metaJson, updatedPkgPath)
         print("Update Package Succeed!")
     else:
         print(r["message"])
@@ -296,27 +312,48 @@ Description: download certain package
 
 argv[2]: package name
 argv[3]: the local path to download pkg
+argv[4]: the version, default is latest
 """
 if message == 'download-pkg':
     pkgName = sys.argv[2]
     downloadPath = sys.argv[3]
+    version = sys.argv[4]
     response = requests.post(SERVER_IP + "/downloadPkg",
-                             data={'pkgName': pkgName})
+                             data={'pkgName': pkgName, 'version' : version})
 
     r = response.headers
 
-
     if not r['ifSuccess']:
-        
+
         print(r['message'])
     else:
+        version = r['version']
         helper.removeDir(downloadPath + "/" + pkgName)
         helper.uncompressFile(response.content, downloadPath)
-        col = helper.getweb3PkgCol(deployed_contract_address, pkgName)
-        pkgInfo = helper.getweb3Pkg(deployed_contract_address, pkgName, '0')
-        print(col)
-        print(pkgInfo)
-        print('file saved')
+        # col = helper.getweb3PkgCol(deployed_contract_address, pkgName)
+
+        # pkgInfo= (pkgName, version, updater, signature)
+        # pkgInfo = helper.getweb3Pkg(deployed_contract_address, pkgName, '0')
+
+        # print(col)
+        # print(pkgInfo)
+        metaFile = open(downloadPath + "/" + pkgName + '/pkgInfo.json', "rb")
+
+        filebytes = BytesIO(response.content)
+        # print(filebytes.read())
+        # myzipfile = zipfile.ZipFile(filebytes)
+        # with open('./myPkg.zip', 'wb') as dst:
+        #   t = myzipfile.getvalue()
+        #   dst.write(t)
+        helper.writeFile(filebytes, pkgName + '.zip' , 'wb')
+        f = open(pkgName + '.zip', 'rb')
+        # helper.wr
+
+        ret = helper.verifyPkg(deployed_contract_address, pkgName, version,f, metaFile)
+        if ret:
+          print('file saved')
+        else:
+          print('unable to verify')
 
 """
 Message: replace package key

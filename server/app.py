@@ -1,4 +1,5 @@
 from hashlib import sha512
+from io import BytesIO
 from logging import root
 import os
 import zipfile
@@ -10,15 +11,13 @@ import helper
 from User import User
 from Package import Package
 
-deployed_contract_address = '0x1Bd4B1Aa9c5A463b7f7bd9662118c1070386F030'
+deployed_contract_address = '0x2E354F79F0e8D78afa0d5C086c7f203401C151ea'
 app = Flask(__name__)
 
 
-pkgName2pkg = helper.convertJson2Pkg()
+# pkgName2pkg = helper.convertJson2Pkg()
 pkgJson = helper.getPkgJson()
 
-
-# userName2userId = {}
 userName2signMsg = {}
 userName2publicKey = {}
 userName2user = helper.convertJson2User()
@@ -71,11 +70,11 @@ def confirmUser():
     hashFromSignature = pow(int(signedMsg), publicKey['e'], publicKey['n'])
     if hash == hashFromSignature:
         try:
-          pkstring = helper.exportPubKeyStr(publicKey['n'],publicKey['e'])
-          message = helper.web3RegisterUser(deployed_contract_address,
-                                  userName, pkstring, socialMedia)
+            pkstring = helper.exportPubKeyStr(publicKey['n'], publicKey['e'])
+            message = helper.web3RegisterUser(deployed_contract_address,
+                                              userName, pkstring, socialMedia)
         except:
-          return json.dumps({'ifSuccess': False, 'message': 'register failed. Unable to register on blockchain'})
+            return json.dumps({'ifSuccess': False, 'message': 'register failed. Unable to register on blockchain'})
 
         global currentUserId
         currentUserId += 1
@@ -86,7 +85,7 @@ def confirmUser():
                                "publicKey": publicKey, "socialMedia": socialMedia}
 
         # helper.updateUserJson(usersJson)
-     
+
         return json.dumps({'ifSuccess': True, 'userId': currentUserId})
     else:
         return json.dumps({'ifSuccess': False, 'message': 'hash inconsistent'})
@@ -108,7 +107,9 @@ def proveIdentity():
     socialMedia = request.form['socialMedia']
     correctSocialMedia = userName2user[userName].socialMedia
     publicKey = userName2user[userName].publicKey
-    if socialMedia == correctSocialMedia and pow(int(post), publicKey['e'], publicKey['n']) == int.from_bytes(
+
+    hashFromPost = pow(int(post), publicKey['e'], publicKey['n'])
+    if socialMedia == correctSocialMedia and hashFromPost == int.from_bytes(
             sha512(msg).digest(), byteorder='big'):
         return json.dumps({'ifProved': True})
     else:
@@ -126,57 +127,46 @@ def proveIdentity():
 @app.route('/registerPkg', methods=['POST'])
 def registerPkg():
     # print(request.form['pkgPublicKey'])
-    pkgContent = request.files['f']
+    pkgContent = request.files['pkgzip']
     metaInfo = request.files['meta']
     metaJson = json.load(metaInfo)
     metaInfo.seek(0)
 
     pkgName = metaJson["pkgName"]
-    # pkgName = request.form['pkgName']
-    # userName = request.form['userName']
-    userName = metaJson["userName"]
-
-    pkgPubKey = metaJson["pkgPubKey"]
+    userName = metaJson["updater"]
+    pkgPubKey = metaJson["colPublicKey"][0]
     userSign = request.form['userSign']
     # print(int(userSign))
     if userName not in userName2publicKey:
         return json.dumps({'ifSuccess': False, 'message': "user not registered"})
-    if pkgName in pkgName2pkg:
+    if pkgName in pkgJson:
         return json.dumps({'ifSuccess': False, 'message': "this package is already registered"})
 
-    userPubKey = userName2publicKey[userName]
+    # userPubKey = userName2publicKey[userName]
 
     hash = sha512()
-
-    chunk = 0
-    while chunk != b'':
-        chunk = pkgContent.read(1024)
-        hash.update(chunk)
-    chunk = 0
-    while chunk != b'':
-        chunk = metaInfo.read(1024)
-        hash.update(chunk)
+    hash = helper.updateHash(pkgContent, hash)
+    hash = helper.updateHash(metaInfo, hash)
     hash = int.from_bytes(hash.digest(), byteorder='big')
-    # print(pkgContent)
-    if pow(int(userSign), userPubKey['e'], userPubKey['n']) == hash:
+
+    if pow(int(userSign), pkgPubKey['e'], pkgPubKey['n']) == hash:
 
         try:
-          pkstring = helper.exportPubKeyStr(pkgPubKey['n'], pkgPubKey['e'])
-          helper.web3AddOwner(deployed_contract_address, userName, pkgName)
-          helper.web3AddPkgwithVersion(deployed_contract_address, pkgName, '0', userName, pkstring, userSign)
+            pkstring = helper.exportPubKeyStr(pkgPubKey['n'], pkgPubKey['e'])
+            helper.web3AddOwner(deployed_contract_address,
+                                userName, pkstring, pkgName)
+            helper.web3AddPkgwithVersion(
+                deployed_contract_address, pkgName, '0', userName, userSign)
         except:
-          return json.dumps({'ifSuccess': False, 'message': 'register failed. Unable to register on blockchain'})
+            return json.dumps({'ifSuccess': False, 'message': 'register failed. Unable to register on blockchain'})
 
-        pkgName2pkg[pkgName] = Package(
-            pkgName, 0, userName, [userName2user[userName]], [pkgPubKey])
-        pkgJson[pkgName] = {"pkgName": pkgName, "version": 0, "ownername": userName, "colUsers": [
-            userName2user[userName].username], "colPublicKey": [pkgPubKey]}
+        pkgContent.seek(0)
+        helper.writeFile(pkgContent, pkgName + '.zip', 'wb')
+
         # print(pkgJson)
         pkgPath = ("./storage/" + pkgName)
         os.mkdir(pkgPath)
         os.mkdir(pkgPath + "/Content")
-
-        helper.updatePkgJson(pkgJson)
 
         #  read the content from start
         pkgContent.seek(0)
@@ -184,8 +174,14 @@ def registerPkg():
 
         helper.uncompressFile(pkgContent.read(), './storage')
 
+        # update global pkg info
+        pkgJson[pkgName] = Package(
+            pkgName, 0, userName, [userName2user[userName]], [pkgPubKey])
 
-        
+        # update the local pkg info
+        pkgJson[pkgName] = {"pkgName": pkgName, "version": 0, "updater": userName, "colUsers": [
+            userName], "colPublicKey": [pkgPubKey]}
+        helper.updatePkgJson(pkgJson)
 
         return json.dumps({'ifSuccess': True})
     return json.dumps({'ifSuccess': False, 'message': 'identity not proved'})
@@ -204,16 +200,17 @@ def addCollaborator():
     colName = request.form['colName']
     newPkgPubKey = json.loads(request.form['colPkgPublicKey'])
     sign = request.form['sign']
-    if pkgName not in pkgName2pkg:
+    if pkgName not in pkgJson:
         return json.dumps({'ifSuccess': False, 'message': 'package does not exist'})
     if colName not in userName2user:
         return json.dumps({'ifSuccess': False, 'message': 'collaborator not registered'})
 
-    pkgObj = pkgName2pkg[pkgName]
+    pkgObj = pkgJson[pkgName]
     newUser = userName2user[colName]
     oriPkgKey = pkgObj.colPublicKey[0]
-    if pow(int(sign), oriPkgKey['e'], oriPkgKey['n']) == \
-            int.from_bytes(sha512(str.encode(pkgName+colName)).digest(), byteorder='big'):
+
+    hashFromSignature = pow(int(sign), oriPkgKey['e'], oriPkgKey['n'])
+    if hashFromSignature == int.from_bytes(sha512(str.encode(pkgName+colName)).digest(), byteorder='big'):
         pkgObj.colUsers.append(newUser)
         pkgObj.colPublicKey.append(newPkgPubKey)
         return json.dumps({'ifSuccess': True})
@@ -232,16 +229,20 @@ def updatePkg():
     metaJson = json.load(metaInfo)
     metaInfo.seek(0)
     pkgName = metaJson['pkgName']
-    userName = metaJson['userName']
+    userName = metaJson['updater']
+    colUsers = metaJson['colUsers']
+    colKeys = metaJson['colPublicKey']
     version = metaJson['version']
+    # pkgName = request.form['pkgName']
+    # userName = request.form['userName']
     sign = request.form['sign']
     pkgObj = None
-    if pkgName in pkgName2pkg:
-        pkgObj = pkgName2pkg[pkgName]
+    if pkgName in pkgJson:
+        pkgObj = pkgJson[pkgName]
     else:
         return json.dumps({'ifSuccess': False, 'message': 'this package is not registered'})
 
-    if pkgObj.version != version:
+    if pkgObj['version'] + 1 != version:
         return json.dumps({'ifSuccess': False, 'message': 'current vesion is not connsistent with the previous version, please download the newest before update'})
 
     hash = sha512()
@@ -253,22 +254,34 @@ def updatePkg():
 
     # sign the file content
     hash = int.from_bytes(hash.digest(), byteorder='big')
-    pkgPubKey = pkgObj.colPublicKey[pkgObj.colUsers.index(
-        userName2user[userName])]
+    index = pkgObj['colUsers'].index(userName)
+    pkgPubKey = pkgObj['colPublicKey'][index]
 
     # calculate the hash based on the package content and meta data
     if pow(int(sign), pkgPubKey['e'], pkgPubKey['n']) == hash:
+        try:
+            # upload the metadata to the block chain
+            # pkstring = helper.exportPubKeyStr(pkgPubKey['n'], pkgPubKey['e'])
+            helper.web3AddPkgwithVersion(deployed_contract_address, pkgName, str(
+                version), userName, sign)
+
+        except:
+            return json.dumps({'ifSuccess': False, 'message': 'update failed: unable to upload to blockchain'})
+
         helper.removeDir('./storage/' + pkgName)
         helper.uncompressFile(pkgContent.read(), './storage')
-        pkgObj.version += 1
-        pkgJson[pkgName]['version'] += 1
+        pkgObj['version'] += 1
+        pkgObj['updater'] = userName
+
+        # update the global json file
         helper.updatePkgJson(pkgJson)
+
+        # update the local json file inside pkg folder
         pkgPath = ("./storage/" + pkgName)
         helper.updateJson(pkgJson[pkgName], pkgPath + "/pkgInfo.json")
 
-        # pkgObj.contents.append(pkgContent)
         return json.dumps({'ifSuccess': True})
-    return json.dumps({'ifSuccess': False})
+    return json.dumps({'ifSuccess': False, 'message': 'hash inconsisent'})
 
 
 # input: pkgName
@@ -278,25 +291,25 @@ def downloadPkg():
 
     pkgName = request.form['pkgName']
 
+
+
     if pkgName not in pkgJson:
         response = make_response()
         response.headers['ifSuccess'] = False
         response.headers['message'] = "package not registered"
         # return json.dumps({'ifSuccess': False, 'message': "package not registered"})
     pkgPath = './storage/' + pkgName
-    # pkgObj = pkgName2pkg[pkgName]
-    # fileContent = open(pkgPath + '/Content/' + pkgName, 'rb')
-    # meta = open(pkgPath + '/pkgInfo.json', 'rb')
-
-    helper.compressFile(pkgPath, pkgName + '.zip')
+  
+    # helper.compressFile(pkgPath, pkgName + '.zip')
 
     response = make_response(send_file(pkgName + '.zip',
                                        mimetype='zip',
                                        attachment_filename=pkgName + '.zip',
                                        as_attachment=True))
-    # response.headers['ifSuccess'] = True
+
     response.headers['ifSuccess'] = True
-    os.remove(pkgName+'.zip')
+    response.headers['version'] = pkgJson[pkgName]['version']
+    # os.remove(pkgName+'.zip')
     return response
 
     # return json.dumps({'meta': meta, 'f': fileContent})
@@ -309,10 +322,10 @@ def replacePkgKey():
     oldPkgPublicKey = json.loads(request.form['oldPkgPublicKey'])
     newPkgPublicKey = json.loads(request.form['newPkgPublicKey'])
     sign = request.form['sign']
-    pkgObj = pkgName2pkg['pkgName']
+    pkgObj = pkgJson['pkgName']
     ownerKey = userName2publicKey[pkgObj.ownername]
-    if pow(int(sign), ownerKey['e'], ownerKey['n']) == \
-            int.from_bytes(sha512(str.encode(pkgName+str(oldPkgPublicKey)+str(newPkgPublicKey))).digest(), byteorder='big'):
+    hashFromSignature = pow(int(sign), ownerKey['e'], ownerKey['n'])
+    if hashFromSignature == int.from_bytes(sha512(str.encode(pkgName+str(oldPkgPublicKey)+str(newPkgPublicKey))).digest(), byteorder='big'):
         pkgObj.colPublicKey[pkgObj.colPublicKey.index(
             oldPkgPublicKey)] = newPkgPublicKey
         return json.dumps({'ifSuccess': True})

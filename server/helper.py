@@ -15,28 +15,37 @@ web3 = Web3(HTTPProvider(blockchain_address))
 web3.eth.defaultAccount = web3.eth.accounts[0]
 compiled_contract_path = './../proj/build/contracts/Sbam.json'
 with open(compiled_contract_path) as file:
-      contract_json = json.load(file)
-      contract_abi = contract_json['abi']
+    contract_json = json.load(file)
+    contract_abi = contract_json['abi']
+
 
 def web3RegisterUser(deployed_contract_address, userName, pubKey, socialMedia):
-  contract = web3.eth.contract(address=deployed_contract_address, abi=contract_abi)
-  hash = contract.functions.registerUser(userName, pubKey, socialMedia).transact()
-  receipt = web3.eth.wait_for_transaction_receipt(hash)
-  log_to_process = receipt['logs'][0]
-  processed_log =  contract.events.MyEvent().processLog(log_to_process)
-  print(processed_log)
-  return receipt
+    contract = web3.eth.contract(
+        address=deployed_contract_address, abi=contract_abi)
+    hash = contract.functions.registerUser(
+        userName, pubKey, socialMedia).transact()
+    receipt = web3.eth.wait_for_transaction_receipt(hash)
+    log_to_process = receipt['logs'][0]
+    processed_log = contract.events.MyEvent().processLog(log_to_process)
+    # print(processed_log)
+    return receipt
 
-def web3AddPkgwithVersion(deployed_contract_address, pkgName, version, ownername, pubKey, sign):
-  contract = web3.eth.contract(address=deployed_contract_address, abi=contract_abi)
-  message = contract.functions.addPkgWithVersion(pkgName, version, ownername, pubKey, sign).transact()
-  return message
 
-def web3AddOwner(deployed_contract_address, ownerName, pkgName):
-  contract = web3.eth.contract(address=deployed_contract_address, abi=contract_abi)
-  message = contract.functions.addPkgOwner(ownerName, pkgName).transact()
-  return message
-  
+def web3AddPkgwithVersion(deployed_contract_address, pkgName, version, updater, sign):
+    contract = web3.eth.contract(
+        address=deployed_contract_address, abi=contract_abi)
+    # print(pkgName, version, updater, sign)
+    message = contract.functions.addPkgWithVersion(
+        pkgName, version, updater, sign).transact()
+    return message
+
+
+def web3AddOwner(deployed_contract_address, ownerName, pkstring,  pkgName):
+    contract = web3.eth.contract(
+        address=deployed_contract_address, abi=contract_abi)
+    message = contract.functions.addPkgOwner(ownerName,pkstring, pkgName).transact()
+    return message
+
 
 def updateHash(filePath, hash):
     if type(filePath) is str:
@@ -70,16 +79,19 @@ def convertJson2User():
         with open("./User.json", "r") as userFile:
             j = json.load(userFile)
             for i in j:
-                newUser = User(j[i]['userId'], j[i]['username'], j[i]['publicKey'], j[i]['socialMedia'])
+                newUser = User(j[i]['userId'], j[i]['username'],
+                               j[i]['publicKey'], j[i]['socialMedia'])
                 users[i] = newUser
     except:
         pass
     return users
 
+
 def exportPubKeyStr(n, e):
-  pk = RSA.construct((n,e))
-  pkstring = pk.exportKey("PEM")
-  return pkstring
+    pk = RSA.construct((n, e))
+    pkstring = pk.exportKey("PEM")
+    return pkstring
+
 
 def getPkgJson():
     pkgs = {}
@@ -91,14 +103,15 @@ def getPkgJson():
     return pkgs
 
 
+# deprecated
 def convertJson2Pkg():
     pkgs = {}
     try:
         with open("./Package.json", "r") as pkgFile:
             j = json.load(pkgFile)
             for i in j:
-                newUser = User(j[i]['pkgName'], j[i]['version'], j[i]['ownername'], j[i]['colUsers'],
-                               j[i]['colPublicKey'])
+                newUser = Package(j[i]['pkgName'], j[i]['version'], j[i]
+                                  ['ownername'], j[i]['colUsers'], j[i]['colPublicKey'])
                 pkgs[i] = newUser
     except:
         pass
@@ -143,7 +156,8 @@ def uncompressFile(srcZip, outputPath):
 
 
 def compressFile(folderPath, zipFileName):
-    zipfolder = zipfile.ZipFile(zipFileName, 'w', compression=zipfile.ZIP_STORED)  # Compression type
+    zipfolder = zipfile.ZipFile(
+        zipFileName, 'w', compression=zipfile.ZIP_STORED)  # Compression type
     for path, dirs, files in os.walk(folderPath):
         for file in files:
             if not os.path.isdir(path):
@@ -155,6 +169,7 @@ def compressFile(folderPath, zipFileName):
 
 def removeDir(path):
     shutil.rmtree(path)
+
 
 if __name__ == '__main__':
     print(writeUser("name", "123", "sumomo"))

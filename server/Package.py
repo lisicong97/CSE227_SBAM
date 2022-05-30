@@ -1,7 +1,7 @@
 class Package:
-    def __init__(self, pkgName, version, ownername, colUsers, colPublicKey):
+    def __init__(self, pkgName, version, updater, colUsers, colPublicKey):
         self.pkgName = pkgName
         self.version = version
-        self.ownername = ownername
+        self.updater = updater
         self.colUsers = colUsers
         self.colPublicKey = colPublicKey
