@@ -13,13 +13,14 @@ contract Sbam {
         string pkgName;
         string version;
         string colName;
-        string colPublicKey;
         string signature; // sign by uploader's pkg private key
     }
 
     struct PkgCollaborator {
         string ownerName;
-        string[10] collaboratorName;
+        string ownerPkgPubKey;
+        string[10] collaboratorNames;
+        string[10] pkgPubKeys;
     }
 
     mapping(string => User) userName2user;
@@ -63,7 +64,6 @@ contract Sbam {
         string memory pkgName,
         string memory version,
         string memory ownername,
-        string memory pubKey,
         string memory sign
     ) public returns (bool) {
         // if (msg.sender != authenticatedServerAddress) {
@@ -85,7 +85,6 @@ contract Sbam {
                 pkgName,
                 version,
                 ownername,
-                pubKey,
                 sign
             );
             pkgName2pkg[key] = pkg;
@@ -102,7 +101,7 @@ contract Sbam {
         return pkgName2pkg[key];
     }
 
-    function addPkgOwner(string memory ownerName, string memory pkgName)
+    function addPkgOwner(string memory ownerName, string memory pkgPubKey, string memory pkgName)
         public
         returns (bool)
     {
@@ -123,13 +122,14 @@ contract Sbam {
                 return false;
             }
             string[10] memory col = ["", "", "", "", "", "", "", "", "", ""];
-            PkgCollaborator memory pkgCol = PkgCollaborator(ownerName, col);
+            string[10] memory key = ["", "", "", "", "", "", "", "", "", ""];
+            PkgCollaborator memory pkgCol = PkgCollaborator(ownerName, pkgPubKey, col, key);
             pkgName2Collaborators[pkgName] = pkgCol;
             return true;
         }
     }
 
-    function addPkgCollaborator(string memory colName, string memory pkgName)
+    function addPkgCollaborator(string memory colName, string memory pkgPubKey, string memory pkgName)
         public
         returns (bool)
     {
@@ -148,13 +148,12 @@ contract Sbam {
                 if (
                     keccak256(
                         abi.encodePacked(
-                            pkgName2Collaborators[pkgName].collaboratorName[i]
+                            pkgName2Collaborators[pkgName].collaboratorNames[i]
                         )
                     ) == keccak256(abi.encodePacked(""))
                 ) {
-                    pkgName2Collaborators[pkgName].collaboratorName[
-                        i
-                    ] = colName;
+                    pkgName2Collaborators[pkgName].collaboratorNames[i] = colName;
+                    pkgName2Collaborators[pkgName].pkgPubKeys[i] = pkgPubKey;
                     find = true;
                     break;
                 }
