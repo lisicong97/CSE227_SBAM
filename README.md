@@ -74,3 +74,6 @@ Update 5.23
 
 * finished interaction with smart constract
 
+Update 6.4
+
+* presentation slides : https://docs.google.com/presentation/d/1yXqw73UdVcQa2hNSummCzfqLDkA340lqUM-3T-zjeBo/edit#slide=id.p
