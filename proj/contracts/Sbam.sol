@@ -64,8 +64,8 @@ contract Sbam {
         string memory pkgName,
         string memory version,
         string memory updater,
-        string memory sign,
-        string memory userSignOf_pkgName_version_updater
+        string memory sign
+        // , string memory userSignOf_pkgName_version_updater
     ) public returns (bool) {
         // if (msg.sender != authenticatedServerAddress) {
         //     emit printToConsole("Only authticated server address can write data to block chain!");

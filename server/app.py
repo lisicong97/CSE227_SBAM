@@ -28,7 +28,6 @@ currentUserId = len(userName2publicKey)
 
 @app.route('/')
 def hello_world():
-    print("1")
     return 'Welcome to SBAM'
 
 
@@ -129,12 +128,13 @@ def registerPkg():
     # print(request.form['pkgPublicKey'])
     pkgContent = request.files['pkgzip']
     metaInfo = request.files['meta']
+    pkgPubKey = request.files['pkgPubkey']
     metaJson = json.load(metaInfo)
     metaInfo.seek(0)
 
     pkgName = metaJson["pkgName"]
     userName = metaJson["updater"]
-    pkgPubKey = metaJson["colPublicKey"][0]
+    
     userSign = request.form['userSign']
     # print(int(userSign))
     if userName not in userName2publicKey:
@@ -147,14 +147,22 @@ def registerPkg():
     hash = sha512()
     hash = helper.updateHash(pkgContent, hash)
     hash = helper.updateHash(metaInfo, hash)
+    # hash = helper.updateHash(pkgPubKey, hash)
     hash = int.from_bytes(hash.digest(), byteorder='big')
 
-    if pow(int(userSign), pkgPubKey['e'], pkgPubKey['n']) == hash:
+    pkgPubKey.seek(0)
+    pubkeystr = pkgPubKey.read()
+    NEPair = helper.importPubKeyStr(pubkeystr)
+    pkgPubKeyN = NEPair.n
+    pkgPubKeyE = NEPair.e
+    hashFromSignature = pow(int(userSign), pkgPubKeyE, pkgPubKeyN)
 
+    if hashFromSignature == hash:
         try:
-            pkstring = helper.exportPubKeyStr(pkgPubKey['n'], pkgPubKey['e'])
+            print(userSign)
+            pkstring = helper.exportPubKeyStr(pkgPubKeyN, pkgPubKeyE)
             helper.web3AddOwner(deployed_contract_address,
-                                userName, pkstring, pkgName)
+                                userName, pubkeystr, pkgName, 'tmpstring')
             helper.web3AddPkgwithVersion(
                 deployed_contract_address, pkgName, '0', userName, userSign)
         except:
@@ -163,7 +171,6 @@ def registerPkg():
         pkgContent.seek(0)
         helper.writeFile(pkgContent, pkgName + '.zip', 'wb')
 
-        # print(pkgJson)
         pkgPath = ("./storage/" + pkgName)
         os.mkdir(pkgPath)
         os.mkdir(pkgPath + "/Content")
@@ -175,12 +182,12 @@ def registerPkg():
         helper.uncompressFile(pkgContent.read(), './storage')
 
         # update global pkg info
-        pkgJson[pkgName] = Package(
-            pkgName, 0, userName, [userName2user[userName]], [pkgPubKey])
+        # pkgJson[pkgName] = Package(
+        #     pkgName, 0, userName, [userName2user[userName]], [pkgPubKey])
 
-        # update the local pkg info
+        # update the global pkg info
         pkgJson[pkgName] = {"pkgName": pkgName, "version": 0, "updater": userName, "colUsers": [
-            userName], "colPublicKey": [pkgPubKey]}
+            userName], "colPublicKey": [{"e" :pkgPubKeyE, "n": pkgPubKeyN}]}
         helper.updatePkgJson(pkgJson)
 
         return json.dumps({'ifSuccess': True})
@@ -230,8 +237,6 @@ def updatePkg():
     metaInfo.seek(0)
     pkgName = metaJson['pkgName']
     userName = metaJson['updater']
-    colUsers = metaJson['colUsers']
-    colKeys = metaJson['colPublicKey']
     version = metaJson['version']
     # pkgName = request.form['pkgName']
     # userName = request.form['userName']
@@ -270,15 +275,17 @@ def updatePkg():
 
         helper.removeDir('./storage/' + pkgName)
         helper.uncompressFile(pkgContent.read(), './storage')
+        pkgContent.seek(0)
+        helper.writeFile(pkgContent, pkgName + '.zip', 'wb')
         pkgObj['version'] += 1
         pkgObj['updater'] = userName
 
         # update the global json file
         helper.updatePkgJson(pkgJson)
 
-        # update the local json file inside pkg folder
-        pkgPath = ("./storage/" + pkgName)
-        helper.updateJson(pkgJson[pkgName], pkgPath + "/pkgInfo.json")
+        # update the local json file inside pkg folder  (edit: no need to update local)
+        # pkgPath = ("./storage/" + pkgName)
+        # helper.updateJson(pkgJson[pkgName], pkgPath + "/pkgInfo.json")
 
         return json.dumps({'ifSuccess': True})
     return json.dumps({'ifSuccess': False, 'message': 'hash inconsisent'})

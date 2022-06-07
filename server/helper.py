@@ -40,10 +40,10 @@ def web3AddPkgwithVersion(deployed_contract_address, pkgName, version, updater, 
     return message
 
 
-def web3AddOwner(deployed_contract_address, ownerName, pkstring,  pkgName):
+def web3AddOwner(deployed_contract_address, ownerName, pkstring,  pkgName, ownerSign):
     contract = web3.eth.contract(
         address=deployed_contract_address, abi=contract_abi)
-    message = contract.functions.addPkgOwner(ownerName,pkstring, pkgName).transact()
+    message = contract.functions.addPkgOwner(ownerName,pkstring, pkgName, ownerSign).transact()
     return message
 
 
@@ -92,6 +92,9 @@ def exportPubKeyStr(n, e):
     pkstring = pk.exportKey("PEM")
     return pkstring
 
+def importPubKeyStr(keystr):
+    pk = RSA.importKey(keystr)
+    return pk
 
 def getPkgJson():
     pkgs = {}

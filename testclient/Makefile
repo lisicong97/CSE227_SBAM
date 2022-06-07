@@ -1,5 +1,5 @@
 registerUser:
-	python3 sbam.py new-user myUser somesocial
+	python3 sbam.py new-user myUser2 somesocial
 registerPkg:
 	python3 sbam.py new-pkg myUser myPkg ./pkgStorage/myPkg
 updatePkg:
