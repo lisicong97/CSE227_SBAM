@@ -2,6 +2,12 @@
 
 **a Secure Package Manager based in block-chain based on SPAM**
 
+change the [app.py](./server/app.py) deployed_contract_address to your contract address.
+
+change the [sbam.py](./client/sbam.py) deployed_contract_address to your contract address.
+
+change the [sbam.py](./client/sbam.py) SERVER_IP to your server ip.
+
 Use geth to run block chain locally,  and rewrite configuration in proj/truffle-config.js to run Sbam smart contract. Below is an example:
 
 ```
@@ -13,7 +19,7 @@ truffle migrate
 
 Or you can just enter the develop version
 
-change the  [Sbam.sol](./proj/contracts/Sbam.sol) authenticatedServerAddress to your server ethereum address, then
+change the  [Sbam.sol](./proj/contracts/Sbam.sol) authenticatedServerAddress to your server Ethereum address, then
 
 ```
 cd proj
@@ -68,3 +74,6 @@ Update 5.23
 
 * finished interaction with smart constract
 
+Update 6.4
+
+* presentation slides : https://docs.google.com/presentation/d/1yXqw73UdVcQa2hNSummCzfqLDkA340lqUM-3T-zjeBo/edit#slide=id.p
